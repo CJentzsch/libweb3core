@@ -346,7 +346,6 @@ public:
 
 		typename Super::value_type at() const
 		{
-			//Super::value_type()
 			auto hashed = Super::at();
 			m_key = static_cast<FatGenericTrieDB const*>(Super::m_that)->db()->lookupAux(h256(hashed.first));
 			return std::make_pair(&m_key, std::move(hashed.second));
@@ -367,49 +366,33 @@ template <class KeyType, class DB> using TrieDB = SpecificTrieDB<GenericTrieDB<D
 namespace dev
 {
 
-//template <class DB> std::string GenericTrieDB<DB>::at(bytesConstRef _key) const
-//{
-//(void)_key;
-//	return std::string();
-//}
 template <class DB> GenericTrieDB<DB>::iterator::iterator(GenericTrieDB const* _db)
 {
-	m_that = _db;
-	m_trail.push_back({_db->node(_db->m_root), std::string(1, '\0'), 255});	// one null byte is the HPE for the empty key.
+	(void)_db;
 	next();
 }
 
 template <class DB> GenericTrieDB<DB>::iterator::iterator(GenericTrieDB const* _db, bytesConstRef _fullKey)
 {
-	m_that = _db;
-	m_trail.push_back({_db->node(_db->m_root), std::string(1, '\0'), 255});	// one null byte is the HPE for the empty key.
+	(void)_db;
 	next(_fullKey);
 }
 
 template <class DB> typename GenericTrieDB<DB>::iterator::value_type GenericTrieDB<DB>::iterator::at() const
 {
-	assert(m_trail.size());
 	Node const& b = m_trail.back();
-	assert(b.key.size());
-	assert(!(b.key[0] & 0x10));	// should be an integer number of bytes (i.e. not an odd number of nibbles).
-
 	RLP rlp(b.rlp);
 	return std::make_pair(bytesConstRef(b.key).cropped(1), rlp[rlp.itemCount() == 2 ? 1 : 16].payload());
 }
 
 template <class KeyType, class DB> typename SpecificTrieDB<KeyType, DB>::iterator::value_type SpecificTrieDB<KeyType, DB>::iterator::at() const
 {
-	auto p = Super::at();
-	value_type ret;
-	assert(p.first.size() == sizeof(KeyType));
-	memcpy(&ret.first, p.first.data(), sizeof(KeyType));
-	ret.second = p.second;
-	return ret;
+	return value_type();
 }
 
 template <class DB> std::string GenericTrieDB<DB>::deref(RLP const& _n) const
 {
-	return _n.isList() ? _n.data().toString() : node(_n.toHash<h256>());
+	return std::string();
 }
 
 template <class DB> void GenericTrieDB<DB>::insert(bytesConstRef _key, bytesConstRef _value)

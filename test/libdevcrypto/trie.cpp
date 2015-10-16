@@ -25,6 +25,7 @@
 #include <json_spirit/JsonSpiritHeaders.h>
 #include <libdevcore/CommonIO.h>
 #include <libdevcore/TrieDB.h>
+#include <libdevcore/ctriedb.h>
 #include <libdevcore/TrieHash.h>
 #include "MemTrie.h"
 #include <test/test.h>
@@ -575,13 +576,27 @@ BOOST_AUTO_TEST_CASE(trieStess)
 	}
 }
 
+void initTrie(MemTrie& _trie, MemoryDB* _db)
+{
+	(void)_trie;
+	(void)_db;
+}
+
+template<typename Trie> void initTrie(Trie& _trie, MemoryDB* _db)
+{
+	_trie.open(_db);
+	_trie.init();
+}
+
 template<typename Trie> void perfTestTrie(char const* _name)
 {
 	for (size_t p = 1000; p != 1000000; p*=10)
 	{
 		MemoryDB dm;
-		Trie d(&dm);
-		d.init();
+
+		Trie d;
+		initTrie(d, &dm);
+
 		cnote << "TriePerf " << _name << p;
 		std::vector<h256> keys(1000);
 		Timer t;
@@ -600,11 +615,11 @@ template<typename Trie> void perfTestTrie(char const* _name)
 		for (auto k: keys)
 			d.at(k);
 		cnote << "Query 1000 values: " << t.elapsed();
-		t.restart();
-		size_t i = 0;
-		for (auto it = d.begin(); i < 1000 && it != d.end(); ++it, ++i)
-			*it;
-		cnote << "Iterate 1000 values: " << t.elapsed();
+//		t.restart();
+//		size_t i = 0;
+//		for (auto it = d.begin(); i < 1000 && it != d.end(); ++it, ++i)
+//			*it;
+//		cnote << "Iterate 1000 values: " << t.elapsed();
 		t.restart();
 		for (auto k: keys)
 			d.remove(k);
@@ -616,6 +631,7 @@ BOOST_AUTO_TEST_CASE(triePerf)
 {
 	if (test::Options::get().performance)
 	{
+		perfTestTrie<MemTrie>("MemTrie");
 		perfTestTrie<SpecificTrieDB<GenericTrieDB<MemoryDB>, h256>>("GenericTrieDB");
 		perfTestTrie<SpecificTrieDB<HashedGenericTrieDB<MemoryDB>, h256>>("HashedGenericTrieDB");
 		perfTestTrie<SpecificTrieDB<FatGenericTrieDB<MemoryDB>, h256>>("FatGenericTrieDB");

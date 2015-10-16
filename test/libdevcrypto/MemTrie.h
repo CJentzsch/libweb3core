@@ -44,8 +44,12 @@ public:
 	void debugPrint();
 
 	std::string const& at(std::string const& _key) const;
+	std::string const& at(h256 const& _key) { return at(_key.hex()); }
 	void insert(std::string const& _key, std::string const& _value);
+	void insert(h256 const& _key, std::string const& _value) { insert(_key.hex(), _value); }
+
 	void remove(std::string const& _key);
+	void remove(h256 const& _key) { remove(_key.hex());	}
 
 private:
 	MemTrieNode* m_root;

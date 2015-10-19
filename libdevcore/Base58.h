@@ -14,23 +14,26 @@
 	You should have received a copy of the GNU General Public License
 	along with cpp-ethereum.  If not, see <http://www.gnu.org/licenses/>.
 */
-/** @file DB.h
- * @author Gav Wood <i@gavwood.com>
- * @date 2014
+/** @file Base58.cpp
+ * Adapted from code found on https://github.com/bitcoin/bitcoin/blob/master/src/base58.cpp
+ * Licenced under The MIT License.
+ * @author The Bitcoin core developers (original)
+ * @author Gav Wood <i@gavwood.com> (minor modifications and reformating)
+ * @date 2015
  */
-
 #pragma once
 
-#pragma warning(push)
-#pragma warning(disable: 4100 4267)
-#if ETH_ROCKSDB
-#include <rocksdb/db.h>
-#include <rocksdb/write_batch.h>
-namespace ldb = rocksdb;
-#else
-#include <leveldb/db.h>
-#include <leveldb/write_batch.h>
-namespace ldb = leveldb;
-#endif
-#pragma warning(pop)
-#define DEV_LDB 1
+#include <string>
+#include "Common.h"
+#include "FixedHash.h"
+
+namespace dev
+{
+
+extern std::string AlphabetIPFS;
+extern std::string AlphabetFlickr;
+
+std::string toBase58(bytesConstRef _in, std::string const& _alphabet = AlphabetIPFS);
+bytes fromBase58(std::string const& _in, std::string const& _alphabet = AlphabetIPFS);
+
+}

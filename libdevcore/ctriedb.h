@@ -83,10 +83,10 @@ public:
 	std::string operator[](_KeyType _k) const { return at(_k); }
 	std::string at(_KeyType _k) const { return atInternal(bytesConstRef((byte const*)&_k, sizeof(_KeyType))); }
 
-	void insert(std::string const& _key, std::string const& _value);
+	//void insert(std::string const& _key, std::string const& _value);
 
 
-	void insertInternal(bytesConstRef const& _key, bytesConstRef _value) { insert(asString(sha3(_key).asBytes()), asString(_value)); }
+	void insertInternal(bytesConstRef _key, bytesConstRef _value);// { insert(asString(sha3(_key).asBytes()), asString(_value)); }
 	//void insert(h256 const& _key, std::string const& _value) { insert(asString(sha3(_key).asBytes()), _value); }
 
 	//void insert(_KeyType const& _key, std::string const& _value) { insert(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
@@ -296,12 +296,12 @@ std::string const& BaseTrie<_KeyType, _DB>::atInternal(bytesConstRef _key) const
 }
 
 template <class _KeyType, class _DB>
-void BaseTrie<_KeyType, _DB>::insert(std::string const& _key, std::string const& _value)
+void BaseTrie<_KeyType, _DB>::insertInternal(bytesConstRef _key, bytesConstRef _value)
 {
 	if (_value.empty())
 		remove(_key);
 	auto h = asNibbles(_key);
-	m_rootNode = m_rootNode ? m_rootNode->insert(&h, _value) : new TrieLeafNode(bytesConstRef(&h), _value);
+	m_rootNode = m_rootNode ? m_rootNode->insert(bytesConstRef(&h), _value.toString()) : new TrieLeafNode(bytesConstRef(&h), _value.toString());
 }
 
 template <class _KeyType, class _DB>

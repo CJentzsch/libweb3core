@@ -452,6 +452,7 @@ public:
 		Super::db()->insertAux(hash, _key);
 	}
 
+	void insert(bytes const& _key, bytes const& _value)	{ insert(bytesConstRef(&_key), bytesConstRef(&_value)); }
 	void remove(bytesConstRef _key) { Super::remove(sha3(_key)); }
 
 	//friend class iterator;

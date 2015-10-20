@@ -81,28 +81,18 @@ public:
 	void debugPrint();
 
 	std::string operator[](_KeyType _k) const { return at(_k); }
-
-	std::string const& at(std::string const& _key) const;
-	std::string const& at(bytesConstRef const& _key) const
-	{
-		return at(toHex(_key));
-	}
-	std::string const& at(h256 const& _key)
-	{
-		return at(_key.hex());
-	}
-
-	std::string at(_KeyType _k) const { return at(bytesConstRef((byte const*)&_k, sizeof(_KeyType))); }
-
+	std::string at(_KeyType _k) const { return atInternal(bytesConstRef((byte const*)&_k, sizeof(_KeyType))); }
 
 	void insert(std::string const& _key, std::string const& _value);
-	void insert(bytesConstRef const& _key, bytesConstRef _value) { insert(asString(sha3(_key).asBytes()), asString(_value)); }
+
+
+	void insertInternal(bytesConstRef const& _key, bytesConstRef _value) { insert(asString(sha3(_key).asBytes()), asString(_value)); }
 	//void insert(h256 const& _key, std::string const& _value) { insert(asString(sha3(_key).asBytes()), _value); }
 
 	//void insert(_KeyType const& _key, std::string const& _value) { insert(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
-	void insert(_KeyType const& _key, bytesConstRef _value) { insert(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
-	void insert(_KeyType const& _key, bytes const& _value) { insert(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), bytesConstRef(&_value)); }
-	void insert(bytes const& _key, bytes const& _value) { insert(bytesConstRef(&_key), bytesConstRef(&_value)); }
+	void insert(_KeyType const& _key, bytesConstRef _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
+	void insert(_KeyType const& _key, bytes const& _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), bytesConstRef(&_value)); }
+	void insert(bytes const& _key, bytes const& _value) { insertInternal(bytesConstRef(&_key), bytesConstRef(&_value)); }
 
 
 
@@ -151,6 +141,8 @@ public:
 
 
 private:
+	std::string const& atInternal(bytesConstRef _key) const;
+
 	TrieNode* m_rootNode;
 	h256 m_root;
 	_DB* m_db = nullptr;
@@ -286,7 +278,6 @@ private:
 };
 
 
-
 template <class _KeyType, class _DB>
 void BaseTrie<_KeyType, _DB>::debugPrint()
 {
@@ -296,7 +287,7 @@ void BaseTrie<_KeyType, _DB>::debugPrint()
 #endif
 }
 template <class _KeyType, class _DB>
-std::string const& BaseTrie<_KeyType, _DB>::at(std::string const& _key) const
+std::string const& BaseTrie<_KeyType, _DB>::atInternal(bytesConstRef _key) const
 {
 	if (!m_rootNode)
 		return c_nullString;

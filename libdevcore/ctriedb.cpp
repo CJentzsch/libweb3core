@@ -7,7 +7,7 @@ namespace dev
 {
 
 
-void CMemTrieNode::putRLP(RLPStream& _parentStream) const
+void TrieNode::putRLP(RLPStream& _parentStream) const
 {
 	RLPStream s;
 	makeRLP(s);
@@ -17,7 +17,7 @@ void CMemTrieNode::putRLP(RLPStream& _parentStream) const
 		_parentStream << dev::sha3(s.out());
 }
 
-void CTrieBranchNode::makeRLP(RLPStream& _intoStream) const
+void TrieBranchNode::makeRLP(RLPStream& _intoStream) const
 {
 	_intoStream.appendList(17);
 	for (auto i: m_nodes)
@@ -28,12 +28,12 @@ void CTrieBranchNode::makeRLP(RLPStream& _intoStream) const
 	_intoStream << m_value;
 }
 
-void CTrieLeafNode::makeRLP(RLPStream& _intoStream) const
+void TrieLeafNode::makeRLP(RLPStream& _intoStream) const
 {
 	_intoStream.appendList(2) << hexPrefixEncode(m_ext, true) << m_value;
 }
 
-void CTrieInfixNode::makeRLP(RLPStream& _intoStream) const
+void TrieInfixNode::makeRLP(RLPStream& _intoStream) const
 {
 	assert(m_next);
 	_intoStream.appendList(2);
@@ -41,26 +41,26 @@ void CTrieInfixNode::makeRLP(RLPStream& _intoStream) const
 	m_next->putRLP(_intoStream);
 }
 
-CMemTrieNode* CMemTrieNode::newBranch(bytesConstRef _k1, std::string const& _v1, bytesConstRef _k2, std::string const& _v2)
+TrieNode* TrieNode::newBranch(bytesConstRef _k1, std::string const& _v1, bytesConstRef _k2, std::string const& _v2)
 {
 	unsigned prefix = commonPrefix(_k1, _k2);
 
-	CMemTrieNode* ret;
+	TrieNode* ret;
 	if (_k1.size() == prefix)
-		ret = new CTrieBranchNode(_k2[prefix], new CTrieLeafNode(_k2.cropped(prefix + 1), _v2), _v1);
+		ret = new TrieBranchNode(_k2[prefix], new TrieLeafNode(_k2.cropped(prefix + 1), _v2), _v1);
 	else if (_k2.size() == prefix)
-		ret = new CTrieBranchNode(_k1[prefix], new CTrieLeafNode(_k1.cropped(prefix + 1), _v1), _v2);
+		ret = new TrieBranchNode(_k1[prefix], new TrieLeafNode(_k1.cropped(prefix + 1), _v1), _v2);
 	else // both continue after split
-		ret = new CTrieBranchNode(_k1[prefix], new CTrieLeafNode(_k1.cropped(prefix + 1), _v1), _k2[prefix], new CTrieLeafNode(_k2.cropped(prefix + 1), _v2));
+		ret = new TrieBranchNode(_k1[prefix], new TrieLeafNode(_k1.cropped(prefix + 1), _v1), _k2[prefix], new TrieLeafNode(_k2.cropped(prefix + 1), _v2));
 
 	if (prefix)
 		// have shared prefix - split.
-		ret = new CTrieInfixNode(_k1.cropped(0, prefix), ret);
+		ret = new TrieInfixNode(_k1.cropped(0, prefix), ret);
 
 	return ret;
 }
 
-std::string const& CTrieBranchNode::at(bytesConstRef _key) const
+std::string const& TrieBranchNode::at(bytesConstRef _key) const
 {
 	if (_key.empty())
 		return m_value;
@@ -69,7 +69,7 @@ std::string const& CTrieBranchNode::at(bytesConstRef _key) const
 	return c_nullString;
 }
 
-CMemTrieNode* CTrieBranchNode::insert(bytesConstRef _key, std::string const& _value)
+TrieNode* TrieBranchNode::insert(bytesConstRef _key, std::string const& _value)
 {
 	assert(_value.size());
 	mark();
@@ -77,13 +77,13 @@ CMemTrieNode* CTrieBranchNode::insert(bytesConstRef _key, std::string const& _va
 		m_value = _value;
 	else
 		if (!m_nodes[_key[0]])
-			m_nodes[_key[0]] = new CTrieLeafNode(_key.cropped(1), _value);
+			m_nodes[_key[0]] = new TrieLeafNode(_key.cropped(1), _value);
 		else
 			m_nodes[_key[0]] = m_nodes[_key[0]]->insert(_key.cropped(1), _value);
 	return this;
 }
 
-CMemTrieNode* CTrieBranchNode::remove(bytesConstRef _key)
+TrieNode* TrieBranchNode::remove(bytesConstRef _key)
 {
 	if (_key.empty())
 		if (m_value.size())
@@ -100,7 +100,7 @@ CMemTrieNode* CTrieBranchNode::remove(bytesConstRef _key)
 	return this;
 }
 
-CMemTrieNode* CTrieBranchNode::rejig()
+TrieNode* TrieBranchNode::rejig()
 {
 	mark();
 	byte n = activeBranch();
@@ -108,23 +108,23 @@ CMemTrieNode* CTrieBranchNode::rejig()
 	if (n == (byte)-1 && m_value.size())
 	{
 		// switch to leaf
-		auto r = new CTrieLeafNode(bytesConstRef(), m_value);
+		auto r = new TrieLeafNode(bytesConstRef(), m_value);
 		delete this;
 		return r;
 	}
 	else if (n < 16 && m_value.empty())
 	{
 		// only branching to n...
-		if (auto b = dynamic_cast<CTrieBranchNode*>(m_nodes[n]))
+		if (auto b = dynamic_cast<TrieBranchNode*>(m_nodes[n]))
 		{
 			// switch to infix
 			m_nodes[n] = nullptr;
 			delete this;
-			return new CTrieInfixNode(bytesConstRef(&n, 1), b);
+			return new TrieInfixNode(bytesConstRef(&n, 1), b);
 		}
 		else
 		{
-			auto x = dynamic_cast<CTrieExtNode*>(m_nodes[n]);
+			auto x = dynamic_cast<TrieExtNode*>(m_nodes[n]);
 			assert(x);
 			// include in child
 			pushFront(x->m_ext, n);
@@ -137,7 +137,7 @@ CMemTrieNode* CTrieBranchNode::rejig()
 	return this;
 }
 
-byte CTrieBranchNode::activeBranch() const
+byte TrieBranchNode::activeBranch() const
 {
 	byte n = (byte)-1;
 	for (int i = 0; i < 16; ++i)
@@ -151,7 +151,7 @@ byte CTrieBranchNode::activeBranch() const
 	return n;
 }
 
-CMemTrieNode* CTrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
+TrieNode* TrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
 {
 	assert(_value.size());
 	mark();
@@ -169,33 +169,33 @@ CMemTrieNode* CTrieInfixNode::insert(bytesConstRef _key, std::string const& _val
 			// instead of pop_front()...
 			trimFront(m_ext, prefix);
 
-			return new CTrieInfixNode(_key.cropped(0, prefix), insert(_key.cropped(prefix), _value));
+			return new TrieInfixNode(_key.cropped(0, prefix), insert(_key.cropped(prefix), _value));
 		}
 		else
 		{
 			// split here.
 			auto f = m_ext[0];
 			trimFront(m_ext, 1);
-			CMemTrieNode* n = m_ext.empty() ? m_next : this;
+			TrieNode* n = m_ext.empty() ? m_next : this;
 			if (n != this)
 			{
 				m_next = nullptr;
 				delete this;
 			}
-			CTrieBranchNode* ret = new CTrieBranchNode(f, n);
+			TrieBranchNode* ret = new TrieBranchNode(f, n);
 			ret->insert(_key, _value);
 			return ret;
 		}
 	}
 }
 
-CMemTrieNode* CTrieInfixNode::remove(bytesConstRef _key)
+TrieNode* TrieInfixNode::remove(bytesConstRef _key)
 {
 	if (contains(_key))
 	{
 		mark();
 		m_next = m_next->remove(_key.cropped(m_ext.size()));
-		if (auto p = dynamic_cast<CTrieExtNode*>(m_next))
+		if (auto p = dynamic_cast<TrieExtNode*>(m_next))
 		{
 			// merge with child...
 			m_ext.reserve(m_ext.size() + p->m_ext.size());
@@ -216,7 +216,7 @@ CMemTrieNode* CTrieInfixNode::remove(bytesConstRef _key)
 	return this;
 }
 
-CMemTrieNode* CTrieLeafNode::insert(bytesConstRef _key, std::string const& _value)
+TrieNode* TrieLeafNode::insert(bytesConstRef _key, std::string const& _value)
 {
 	assert(_value.size());
 	mark();
@@ -228,13 +228,13 @@ CMemTrieNode* CTrieLeafNode::insert(bytesConstRef _key, std::string const& _valu
 	else
 	{
 		// create new trie.
-		auto n = CMemTrieNode::newBranch(_key, _value, bytesConstRef(&m_ext), m_value);
+		auto n = TrieNode::newBranch(_key, _value, bytesConstRef(&m_ext), m_value);
 		delete this;
 		return n;
 	}
 }
 
-CMemTrieNode* CTrieLeafNode::remove(bytesConstRef _key)
+TrieNode* TrieLeafNode::remove(bytesConstRef _key)
 {
 	if (contains(_key))
 	{

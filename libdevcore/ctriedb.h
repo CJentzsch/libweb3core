@@ -59,8 +59,8 @@ template <class _KeyType, class _DB>
 class BaseTrie: public _DB
 {
 public:
-	explicit BaseTrie(_DB* _db = nullptr): m_rootNode(nullptr), m_db(_db) {}
-	BaseTrie(_DB* _db, h256 const& _root, Verification _v = Verification::Normal): m_root(_root), m_db(_db), m_rootNode(nullptr) {(void)_v;}
+	explicit BaseTrie(_DB* _db = nullptr): m_hashed(true), m_rootNode(nullptr), m_db(_db) {}
+	BaseTrie(_DB* _db, h256 const& _root, Verification _v = Verification::Normal): m_hashed(true), m_root(_root), m_db(_db), m_rootNode(nullptr) {(void)_v;}
 	~BaseTrie() { delete m_rootNode; }
 
 	void open(_DB* _db) { m_db = _db; }
@@ -69,11 +69,11 @@ public:
 	void setRoot(h256 const& _root, Verification _v = Verification::Normal);
 
 	/// True if the trie is uninitialised (i.e. that the DB doesn't contain the root node).
-	bool isNull() const {return false;} // TODO return !node(m_rootHash).size(); }
+	bool isNull() const { return m_rootNode ? true : false;} // TODO return !node(m_rootHash).size(); }
 	/// True if the trie is initialised but empty (i.e. that the DB contains the root node which is empty).
-	bool isEmpty() const {return false;} //TODO return m_rootHash == c_shaNull && node(m_rootHash).size(); }
+	bool isEmpty() const {return m_root == c_shaNull;} //TODO return m_rootHash == c_shaNull && node(m_rootHash).size(); }
 
-	void init() { m_root = root();} // TODO  insert(&RLPNull)
+	void init() { insertNode(&RLPNull);} // TODO  insert(&RLPNull)
 
 	h256 root() const { return m_rootNode ? m_rootNode->hash256() : sha3(dev::rlp(bytesConstRef())); }
 	bytes rlp() const { return m_rootNode ? m_rootNode->rlp() : dev::rlp(bytesConstRef()); }
@@ -83,28 +83,14 @@ public:
 	std::string operator[](_KeyType _k) const { return at(_k); }
 	std::string at(_KeyType _k) const { return atInternal(bytesConstRef((byte const*)&_k, sizeof(_KeyType))); }
 
-	//void insert(std::string const& _key, std::string const& _value);
-
-
-	void insertInternal(bytesConstRef _key, bytesConstRef _value);// { insert(asString(sha3(_key).asBytes()), asString(_value)); }
-	//void insert(h256 const& _key, std::string const& _value) { insert(asString(sha3(_key).asBytes()), _value); }
-
-	//void insert(_KeyType const& _key, std::string const& _value) { insert(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
 	void insert(_KeyType const& _key, bytesConstRef _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
 	void insert(_KeyType const& _key, bytes const& _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), bytesConstRef(&_value)); }
 	void insert(bytes const& _key, bytes const& _value) { insertInternal(bytesConstRef(&_key), bytesConstRef(&_value)); }
 
+	void remove(_KeyType const& _key) {  removeInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType))); }
 
-
-	void removeReal(std::string const& _key);
-	void remove(bytesConstRef const& _key ) { removeReal(asString(sha3(_key).asBytes())); }
-	void remove(_KeyType const& _key) {  remove(bytesConstRef((byte const*)&_key, sizeof(_KeyType))); }
-
-	//void remove(h256 const& _key) { remove(_key.hex()); }
-	//void remove(h160 const& _key) { remove(_key.hex()); }
-	//void remove(bytes const& _key) { remove(asString(_key)); }
-	//void remove(bytesConstRef _key) { remove(asString(_key)); }
-
+	void insertNode(bytesConstRef _v) { auto h = sha3(_v); m_db->insert(h, _v);}
+	void removeNode(bytesConstRef _v) { auto h = sha3(_v); m_db->kill(h, _v);}
 
 	_DB const* db() const { return m_db; }
 	_DB* db() { return m_db; }
@@ -139,15 +125,19 @@ public:
 
 	iterator lower_bound(_KeyType _k) const { return iterator(this, bytesConstRef((byte const*)&_k, sizeof(_KeyType))); }
 
+	void setHashed(bool _isHashed) { m_hashed = _isHashed; }
+	bool isHashed() { return m_hashed; }
 
-private:
+protected:
 	std::string const& atInternal(bytesConstRef _key) const;
+	void insertInternal(bytesConstRef _key, bytesConstRef _value);// { insert(asString(sha3(_key).asBytes()), asString(_value)); }
+	void removeInternal(bytesConstRef _key);
 
+	bool m_hashed;
 	TrieNode* m_rootNode;
 	h256 m_root;
 	_DB* m_db = nullptr;
 };
-
 
 #define ENABLE_DEBUG_PRINT 0
 
@@ -291,6 +281,13 @@ std::string const& BaseTrie<_KeyType, _DB>::atInternal(bytesConstRef _key) const
 {
 	if (!m_rootNode)
 		return c_nullString;
+
+	if (m_hashed)
+	{
+		h256 key = sha3(_key);
+		_key = bytesConstRef((byte const*)&key, sizeof(h256));
+	}
+
 	auto h = asNibbles(_key);
 	return m_rootNode->at(bytesConstRef(&h));
 }
@@ -298,19 +295,29 @@ std::string const& BaseTrie<_KeyType, _DB>::atInternal(bytesConstRef _key) const
 template <class _KeyType, class _DB>
 void BaseTrie<_KeyType, _DB>::insertInternal(bytesConstRef _key, bytesConstRef _value)
 {
+	if (m_hashed)
+	{
+		h256 key = sha3(_key);
+		_key = bytesConstRef((byte const*)&key, sizeof(h256));
+	}
 	if (_value.empty())
-		remove(_key);
+		removeInternal(_key);
 	auto h = asNibbles(_key);
 	m_rootNode = m_rootNode ? m_rootNode->insert(bytesConstRef(&h), _value.toString()) : new TrieLeafNode(bytesConstRef(&h), _value.toString());
 }
 
 template <class _KeyType, class _DB>
-void BaseTrie<_KeyType, _DB>::removeReal(std::string const& _key)
+void BaseTrie<_KeyType, _DB>::removeInternal(bytesConstRef _key)
 {
 	if (m_rootNode)
 	{
+		if (m_hashed)
+		{
+			h256 key = sha3(_key);
+			_key = bytesConstRef((byte const*)&key, sizeof(h256));
+		}
 		auto h = asNibbles(_key);
-		m_rootNode = m_rootNode->remove(&h);
+		m_rootNode = m_rootNode->remove(bytesConstRef(&h));
 	}
 }
 template <class _KeyType, class _DB>

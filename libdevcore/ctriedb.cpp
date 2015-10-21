@@ -6,6 +6,7 @@ using namespace dev;
 namespace dev
 {
 
+std::vector<TrieNode*> TrieNode::inserts = {};
 
 void TrieNode::putRLP(RLPStream& _parentStream) const
 {
@@ -56,7 +57,7 @@ TrieNode* TrieNode::newBranch(bytesConstRef _k1, std::string const& _v1, bytesCo
 	if (prefix)
 		// have shared prefix - split.
 		ret = new TrieInfixNode(_k1.cropped(0, prefix), ret);
-
+	inserts.push_back(ret); // TODO probably need to add more here
 	return ret;
 }
 
@@ -76,11 +77,15 @@ TrieNode* TrieBranchNode::insert(bytesConstRef _key, std::string const& _value)
 	if (_key.empty())
 		m_value = _value;
 	else
+	{
 		if (!m_nodes[_key[0]])
-			m_nodes[_key[0]] = new TrieLeafNode(_key.cropped(1), _value);
+			m_nodes[_key[0]] = new TrieLeafNode(_key.cropped(1), _value); // TODO add to leveldb
 		else
 			m_nodes[_key[0]] = m_nodes[_key[0]]->insert(_key.cropped(1), _value);
-	return this;
+		inserts.push_back(m_nodes[_key[0]]);
+	}
+	inserts.push_back(this);
+	return this; // TODO add to leveldb
 }
 
 TrieNode* TrieBranchNode::remove(bytesConstRef _key)
@@ -97,6 +102,7 @@ TrieNode* TrieBranchNode::remove(bytesConstRef _key)
 		m_nodes[_key[0]] = m_nodes[_key[0]]->remove(_key.cropped(1));
 		return rejig();
 	}
+	inserts.push_back(this);
 	return this;
 }
 
@@ -110,6 +116,7 @@ TrieNode* TrieBranchNode::rejig()
 		// switch to leaf
 		auto r = new TrieLeafNode(bytesConstRef(), m_value);
 		delete this;
+		inserts.push_back(r);
 		return r;
 	}
 	else if (n < 16 && m_value.empty())
@@ -120,7 +127,9 @@ TrieNode* TrieBranchNode::rejig()
 			// switch to infix
 			m_nodes[n] = nullptr;
 			delete this;
-			return new TrieInfixNode(bytesConstRef(&n, 1), b);
+			TrieNode* node = new TrieInfixNode(bytesConstRef(&n, 1), b);
+			inserts.push_back(node);
+			return node;
 		}
 		else
 		{
@@ -130,10 +139,11 @@ TrieNode* TrieBranchNode::rejig()
 			pushFront(x->m_ext, n);
 			m_nodes[n] = nullptr;
 			delete this;
+			inserts.push_back(x);
 			return x;
 		}
 	}
-
+	inserts.push_back(this);
 	return this;
 }
 
@@ -158,7 +168,8 @@ TrieNode* TrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
 	if (contains(_key))
 	{
 		m_next = m_next->insert(_key.cropped(m_ext.size()), _value);
-		return this;
+		inserts.push_back(this);
+		return this; // TODO add to leveldb
 	}
 	else
 	{
@@ -168,8 +179,9 @@ TrieNode* TrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
 			// one infix becomes two infixes, then insert into the second
 			// instead of pop_front()...
 			trimFront(m_ext, prefix);
-
-			return new TrieInfixNode(_key.cropped(0, prefix), insert(_key.cropped(prefix), _value));
+			TrieInfixNode* ret = new TrieInfixNode(_key.cropped(0, prefix), insert(_key.cropped(prefix), _value));
+			inserts.push_back(ret);
+			return ret; // TODO add to leveldb
 		}
 		else
 		{
@@ -180,10 +192,11 @@ TrieNode* TrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
 			if (n != this)
 			{
 				m_next = nullptr;
-				delete this;
+				delete this; // TODO remove from leveldb
 			}
-			TrieBranchNode* ret = new TrieBranchNode(f, n);
+			TrieBranchNode* ret = new TrieBranchNode(f, n); // TODO add to leveldb
 			ret->insert(_key, _value);
+			inserts.push_back(ret);
 			return ret;
 		}
 	}
@@ -205,6 +218,7 @@ TrieNode* TrieInfixNode::remove(bytesConstRef _key)
 			p->mark();
 			m_next = nullptr;
 			delete this;
+			inserts.push_back(p);
 			return p;
 		}
 		if (!m_next)
@@ -213,6 +227,7 @@ TrieNode* TrieInfixNode::remove(bytesConstRef _key)
 			return nullptr;
 		}
 	}
+	inserts.push_back(this);
 	return this;
 }
 
@@ -223,13 +238,15 @@ TrieNode* TrieLeafNode::insert(bytesConstRef _key, std::string const& _value)
 	if (contains(_key))
 	{
 		m_value = _value;
-		return this;
+		inserts.push_back(this);
+		return this; // TODO add to leveldb
 	}
 	else
 	{
 		// create new trie.
 		auto n = TrieNode::newBranch(_key, _value, bytesConstRef(&m_ext), m_value);
 		delete this;
+		inserts.push_back(n);
 		return n;
 	}
 }
@@ -241,6 +258,7 @@ TrieNode* TrieLeafNode::remove(bytesConstRef _key)
 		delete this;
 		return nullptr;
 	}
+	inserts.push_back(this);
 	return this;
 }
 }

@@ -582,6 +582,12 @@ void initTrie(MemTrie& _trie, MemoryDB* _db)
 	(void)_db;
 }
 
+void initTrie(BaseTrie<h256, MemoryDB>& _trie, MemoryDB* _db)
+{
+	(void)_trie;
+	(void)_db;
+}
+
 template<typename Trie> void initTrie(Trie& _trie, MemoryDB* _db)
 {
 	_trie.open(_db);
@@ -594,8 +600,9 @@ template<typename Trie> void perfTestTrie(char const* _name)
 	{
 		MemoryDB dm;
 
-		Trie d;
-		initTrie(d, &dm);
+		Trie d(&dm);
+		d.init();
+		//initTrie(d, &dm);
 
 		cnote << "TriePerf " << _name << p;
 		std::vector<h256> keys(1000);
@@ -603,7 +610,7 @@ template<typename Trie> void perfTestTrie(char const* _name)
 		size_t ki = 0;
 		for (size_t i = 0; i < p; ++i)
 		{
-			auto k = h256::random();
+			auto k = h256(i);// h256::random();
 			auto v = toString(i);
 			d.insert(k, v);
 
@@ -611,19 +618,22 @@ template<typename Trie> void perfTestTrie(char const* _name)
 				keys[ki++] = k;
 		}
 		cnote << "Insert " << p << "values: " << t.elapsed();
+		//cnote << "root hash after insert: " << d.root() << "\n";
 		t.restart();
 		for (auto k: keys)
 			d.at(k);
 		cnote << "Query 1000 values: " << t.elapsed();
-//		t.restart();
-//		size_t i = 0;
-//		for (auto it = d.begin(); i < 1000 && it != d.end(); ++it, ++i)
-//			*it;
-//		cnote << "Iterate 1000 values: " << t.elapsed();
+		t.restart();
+		size_t i = 0;
+		for (auto it = d.begin(); i < 1000 && it != d.end(); ++it, ++i)
+			*it;
+		cnote << "Iterate 1000 values: " << t.elapsed();
 		t.restart();
 		for (auto k: keys)
 			d.remove(k);
-		cnote << "Remove 1000 values:" << t.elapsed() << "\n";
+		cnote << "Remove 1000 values:" << t.elapsed();
+
+		cnote << "root hash after remove: " << d.root() << "\n";
 	}
 }
 
@@ -631,8 +641,9 @@ BOOST_AUTO_TEST_CASE(triePerf)
 {
 	if (test::Options::get().performance)
 	{
-		perfTestTrie<MemTrie>("MemTrie");
-		perfTestTrie<SpecificTrieDB<GenericTrieDB<MemoryDB>, h256>>("GenericTrieDB");
+		perfTestTrie<BaseTrie<h256, MemoryDB>>("BaseTrie");
+		//perfTestTrie<MemTrie>("MemTrie");
+		//perfTestTrie<SpecificTrieDB<GenericTrieDB<MemoryDB>, h256>>("GenericTrieDB");
 		perfTestTrie<SpecificTrieDB<HashedGenericTrieDB<MemoryDB>, h256>>("HashedGenericTrieDB");
 		perfTestTrie<SpecificTrieDB<FatGenericTrieDB<MemoryDB>, h256>>("FatGenericTrieDB");
 	}

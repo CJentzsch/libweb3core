@@ -23,7 +23,7 @@
 
 #include <libdevcore/Common.h>
 #include <libdevcore/FixedHash.h>
-
+#include <libdevcore/SHA3.h>
 namespace dev
 {
 
@@ -39,6 +39,7 @@ public:
 	~MemTrie();
 
 	h256 hash256() const;
+	h256 root() const {return hash256();}
 	bytes rlp() const;
 
 	void debugPrint();
@@ -46,7 +47,7 @@ public:
 	std::string const& at(std::string const& _key) const;
 	std::string const& at(h256 const& _key) { return at(_key.hex()); }
 	void insert(std::string const& _key, std::string const& _value);
-	void insert(h256 const& _key, std::string const& _value) { insert(_key.hex(), _value); }
+	void insert(h256 const& _key, std::string const& _value) { insert(sha3(_key).hex(), _value); }
 
 	void remove(std::string const& _key);
 	void remove(h256 const& _key) { remove(_key.hex());	}

@@ -37,6 +37,8 @@ public:
 	bytes rlp() const { RLPStream s; makeRLP(s); return s.out(); }
 	void mark() { m_hash256 = h256(); }
 
+	static std::vector<TrieNode*> inserts;
+
 protected:
 	virtual void makeRLP(RLPStream& _intoStream) const = 0;
 
@@ -60,7 +62,7 @@ class BaseTrie: public _DB
 {
 public:
 	explicit BaseTrie(_DB* _db = nullptr): m_hashed(true), m_rootNode(nullptr), m_db(_db) {}
-	BaseTrie(_DB* _db, h256 const& _root, Verification _v = Verification::Normal): m_hashed(true), m_root(_root), m_db(_db), m_rootNode(nullptr) {(void)_v;}
+	BaseTrie(_DB* _db, h256 const& _root, Verification _v = Verification::Normal): m_hashed(true), m_rootNode(nullptr), m_root(_root), m_db(_db) {(void)_v;}
 	~BaseTrie() { delete m_rootNode; }
 
 	void open(_DB* _db) { m_db = _db; }
@@ -73,7 +75,7 @@ public:
 	/// True if the trie is initialised but empty (i.e. that the DB contains the root node which is empty).
 	bool isEmpty() const {return m_root == c_shaNull;} //TODO return m_rootHash == c_shaNull && node(m_rootHash).size(); }
 
-	void init() { insertNode(&RLPNull);} // TODO  insert(&RLPNull)
+	void init() { insertNode(&RLPNull); setRoot(sha3(RLPNull));}  //insert(sha3(RLPNull), RLPNull); }
 
 	h256 root() const { return m_rootNode ? m_rootNode->hash256() : sha3(dev::rlp(bytesConstRef())); }
 	bytes rlp() const { return m_rootNode ? m_rootNode->rlp() : dev::rlp(bytesConstRef()); }
@@ -89,8 +91,11 @@ public:
 
 	void remove(_KeyType const& _key) {  removeInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType))); }
 
+	void insertNode(TrieNode* _node);
 	void insertNode(bytesConstRef _v) { auto h = sha3(_v); m_db->insert(h, _v);}
+	void removeNode(TrieNode* _node);
 	void removeNode(bytesConstRef _v) { auto h = sha3(_v); m_db->kill(h, _v);}
+	std::string node(h256 const& _h) const { return m_db->lookup(_h); }
 
 	_DB const* db() const { return m_db; }
 	_DB* db() { return m_db; }
@@ -267,6 +272,28 @@ private:
 	TrieNode* m_next;
 };
 
+template <class _KeyType, class _DB>
+void BaseTrie<_KeyType, _DB>::insertNode(TrieNode* _node)
+{
+	//(void) _node;
+	bytes rlp = _node->rlp(); // horribly inefficient - needs improvement TODO
+	m_db->insert(_node->hash256(), bytesConstRef(&rlp));
+
+	// insert nodes from TrieNode::inserts list
+	for (auto const& p: TrieNode::inserts)
+	{
+		bytes rlp = p->rlp();
+		m_db->insert(p->hash256(), bytesConstRef(&rlp));
+		delete p;
+	}
+	TrieNode::inserts.clear();
+}
+
+template <class _KeyType, class _DB>
+void BaseTrie<_KeyType, _DB>::removeNode(TrieNode* _node)
+{
+	m_db->kill(_node->hash256());
+}
 
 template <class _KeyType, class _DB>
 void BaseTrie<_KeyType, _DB>::debugPrint()
@@ -303,7 +330,9 @@ void BaseTrie<_KeyType, _DB>::insertInternal(bytesConstRef _key, bytesConstRef _
 	if (_value.empty())
 		removeInternal(_key);
 	auto h = asNibbles(_key);
+
 	m_rootNode = m_rootNode ? m_rootNode->insert(bytesConstRef(&h), _value.toString()) : new TrieLeafNode(bytesConstRef(&h), _value.toString());
+	insertNode(m_rootNode);
 }
 
 template <class _KeyType, class _DB>
@@ -318,19 +347,21 @@ void BaseTrie<_KeyType, _DB>::removeInternal(bytesConstRef _key)
 		}
 		auto h = asNibbles(_key);
 		m_rootNode = m_rootNode->remove(bytesConstRef(&h));
+		insertNode(m_rootNode);
 	}
 }
 template <class _KeyType, class _DB>
 void BaseTrie<_KeyType, _DB>::setRoot(h256 const& _root, Verification _v)
 {
 	m_root = _root;
+
 	if (_v == Verification::Normal)
 	{
 		if (m_root == c_shaNull && !m_db->exists(m_root))
 			init();
 	}
-//		if (!node(m_root).size())
-//			BOOST_THROW_EXCEPTION(RootNotFound());
+		if (!node(m_root).size())
+			BOOST_THROW_EXCEPTION(RootNotFound());
 }
 
 }

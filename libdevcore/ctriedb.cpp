@@ -46,16 +46,20 @@ TrieNode* TrieNode::lookupNode(h256 const& _h) const
 //	else
 //	{
 //		// TrieExtNodeCJ
-//		if (rlp[0].payload()[0] & 0x20 != 0)
+		if ((rlp[0].payload()[0] & 0x20) != 0)
+		{
 //			// is leaf
 	bytes key = asNibbles(rlp[0].toBytesConstRef().cropped(1)); //remove prefix
 	TrieLeafNodeCJ* leaf = new TrieLeafNodeCJ(&key, rlp[1].payload().toString());
 	return leaf;
-//			;
-//		else
-//			// is Infix
-//	TrieInfixNodeCJ* node = new TrieInfixNodeCJ(rlp[0].payload());
-//			;
+		}
+		else
+		{
+		// is Infix
+			bytes key = asNibbles(rlp[0].toBytesConstRef().cropped(1)); //remove prefix
+			TrieInfixNodeCJ* inFix = new TrieInfixNodeCJ(&key, h256(rlp[1].payload()));
+			return inFix;
+		}
 
 //	}
 

@@ -184,20 +184,20 @@ class TrieBranchNodeCJ: public TrieNode
 {
 public:
 
-	TrieBranchNodeCJ(std::array<TrieNode*, 16> const _nodes, std::string const& _value): m_nodes(_nodes), m_value(_value) {}
+	TrieBranchNodeCJ(std::array<h256, 16> const _nodes, std::string const& _value): m_nodes(_nodes), m_value(_value) {}
 
 	TrieBranchNodeCJ(std::string const& _value): m_value(_value)
 	{
-		memset(m_nodes.data(), 0, sizeof(TrieNode*) * 16);
+		memset(m_nodes.data(), 0, sizeof(h256) * 16);
 	}
 
-	TrieBranchNodeCJ(byte _i1, TrieNode* _n1, std::string const& _value = std::string()): m_value(_value)
+	TrieBranchNodeCJ(byte _i1, h256 _n1, std::string const& _value = std::string()): m_value(_value)
 	{
-		memset(m_nodes.data(), 0, sizeof(TrieNode*) * 16);
+		memset(m_nodes.data(), 0, sizeof(h256*) * 16);
 		m_nodes[_i1] = _n1;
 	}
 
-	TrieBranchNodeCJ(byte _i1, TrieNode* _n1, byte _i2, TrieNode* _n2)
+	TrieBranchNodeCJ(byte _i1, h256 _n1, byte _i2, h256 _n2)
 	{
 		memset(m_nodes.data(), 0, sizeof(TrieNode*) * 16);
 		m_nodes[_i1] = _n1;
@@ -206,11 +206,7 @@ public:
 
 	string type() {return string("Branch");}
 
-	virtual ~TrieBranchNodeCJ()
-	{
-		for (auto i: m_nodes)
-			delete i;
-	}
+	virtual ~TrieBranchNodeCJ() {}
 
 #if ENABLE_DEBUG_PRINT
 	virtual void debugPrintBody(std::string const& _indent) const
@@ -238,7 +234,8 @@ private:
 
 	TrieNode* rejig();
 
-	std::array<TrieNode*, 16> m_nodes;
+	std::array<h256, 16> m_nodes;
+	//std::array<TrieNode*, 16> m_nodes;
 	std::string m_value;
 };
 

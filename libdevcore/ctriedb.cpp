@@ -47,6 +47,7 @@ TrieNode* TrieNode::lookupNode(h256 const& _h) const
 //			;
 //		else
 //			// is Infix
+	//TrieInfixNodeCJ* node = new TrieInfixNodeCJ(rlp[0].payload());
 //			;
 
 //	}
@@ -59,7 +60,7 @@ void TrieBranchNodeCJ::makeRLP(RLPStream& _intoStream) const
 	_intoStream.appendList(17);
 	for (auto i: m_nodes)
 		if (i)
-			i->putRLP(_intoStream);
+			lookupNode(i)->putRLP(_intoStream);
 		else
 			_intoStream << "";
 	_intoStream << m_value;
@@ -87,13 +88,13 @@ TrieNode* TrieNode::newBranch(bytesConstRef _k1, std::string const& _v1, bytesCo
 	{
 		TrieLeafNodeCJ* leaf = new TrieLeafNodeCJ(_k2.cropped(prefix + 1), _v2);
 		leaf->insertNodeInDB();
-		ret = new TrieBranchNodeCJ(_k2[prefix], leaf, _v1);
+		ret = new TrieBranchNodeCJ(_k2[prefix], leaf->hash256(), _v1);
 	}
 	else if (_k2.size() == prefix)
 	{
 		TrieLeafNodeCJ* leaf = new TrieLeafNodeCJ(_k1.cropped(prefix + 1), _v1);
 		leaf->insertNodeInDB();
-		ret = new TrieBranchNodeCJ(_k1[prefix], leaf, _v2);
+		ret = new TrieBranchNodeCJ(_k1[prefix], leaf->hash256(), _v2);
 	}
 	else // both continue after split
 	{
@@ -101,7 +102,7 @@ TrieNode* TrieNode::newBranch(bytesConstRef _k1, std::string const& _v1, bytesCo
 		leaf1->insertNodeInDB();
 		TrieLeafNodeCJ* leaf2 = new TrieLeafNodeCJ(_k2.cropped(prefix + 1), _v2);
 		leaf2->insertNodeInDB();
-		ret = new TrieBranchNodeCJ(_k1[prefix], leaf1, _k2[prefix], leaf2);
+		ret = new TrieBranchNodeCJ(_k1[prefix], leaf1->hash256(), _k2[prefix], leaf2->hash256());
 	}
 	if (prefix)
 	{
@@ -117,8 +118,8 @@ std::string const& TrieBranchNodeCJ::at(bytesConstRef _key) const
 {
 	if (_key.empty())
 		return m_value;
-	else if (m_nodes[_key[0]] != nullptr)
-		return m_nodes[_key[0]]->at(_key.cropped(1));
+	else if (m_nodes[_key[0]] != h256())
+		return lookupNode(m_nodes[_key[0]])->at(_key.cropped(1));
 	return c_nullString;
 }
 
@@ -131,10 +132,18 @@ TrieNode* TrieBranchNodeCJ::insert(bytesConstRef _key, std::string const& _value
 	else
 	{
 		if (!m_nodes[_key[0]])
-			m_nodes[_key[0]] = new TrieLeafNodeCJ(_key.cropped(1), _value); // TODO add to leveldb
+		{
+			TrieLeafNodeCJ* n = new TrieLeafNodeCJ(_key.cropped(1), _value);
+			n->insertNodeInDB();
+			m_nodes[_key[0]] = n->hash256();// new TrieLeafNodeCJ(_key.cropped(1), _value); // TODO add to leveldb
+		}
 		else
-			m_nodes[_key[0]] = m_nodes[_key[0]]->insert(_key.cropped(1), _value);
-		m_nodes[_key[0]]->insertNodeInDB();
+		{
+			TrieNode* n = lookupNode(m_nodes[_key[0]])->insert(_key.cropped(1), _value);
+			n->insertNodeInDB();
+			m_nodes[_key[0]] = n->hash256();
+		}
+		lookupNode(m_nodes[_key[0]])->insertNodeInDB();
 	}
 	this->insertNodeInDB();
 	return this;
@@ -149,9 +158,10 @@ TrieNode* TrieBranchNodeCJ::remove(bytesConstRef _key)
 			return rejig();
 		}
 		else {}
-	else if (m_nodes[_key[0]] != nullptr)
+	else if (m_nodes[_key[0]] != h256())
 	{
-		m_nodes[_key[0]] = m_nodes[_key[0]]->remove(_key.cropped(1));
+		TrieNode* n = lookupNode(m_nodes[_key[0]])->remove(_key.cropped(1));
+		m_nodes[_key[0]] = n->hash256();
 		return rejig();
 	}
 	this->insertNodeInDB();
@@ -174,10 +184,10 @@ TrieNode* TrieBranchNodeCJ::rejig()
 	else if (n < 16 && m_value.empty())
 	{
 		// only branching to n...
-		if (auto b = dynamic_cast<TrieBranchNodeCJ*>(m_nodes[n]))
+		if (auto b = dynamic_cast<TrieBranchNodeCJ*>(lookupNode(m_nodes[n])))
 		{
 			// switch to infix
-			m_nodes[n] = nullptr;
+			m_nodes[n] = h256();
 			delete this;
 			TrieNode* node = new TrieInfixNodeCJ(bytesConstRef(&n, 1), b->hash256());
 			node->insertNodeInDB();
@@ -185,11 +195,11 @@ TrieNode* TrieBranchNodeCJ::rejig()
 		}
 		else
 		{
-			auto x = dynamic_cast<TrieExtNodeCJ*>(m_nodes[n]);
+			auto x = dynamic_cast<TrieExtNodeCJ*>(lookupNode(m_nodes[n]));
 			assert(x);
 			// include in child
 			pushFront(x->m_ext, n);
-			m_nodes[n] = nullptr;
+			m_nodes[n] = h256();
 			delete this;
 			x->insertNodeInDB();
 			return x;
@@ -203,7 +213,7 @@ byte TrieBranchNodeCJ::activeBranch() const
 {
 	byte n = (byte)-1;
 	for (int i = 0; i < 16; ++i)
-		if (m_nodes[i] != nullptr)
+		if (m_nodes[i] != h256())
 		{
 			if (n == (byte)-1)
 				n = (byte)i;
@@ -241,12 +251,13 @@ TrieNode* TrieInfixNodeCJ::insert(bytesConstRef _key, std::string const& _value)
 			auto f = m_ext[0];
 			trimFront(m_ext, 1);
 			TrieNode* n = m_ext.empty() ? lookupNode(m_next) : this;
+			n->insertNodeInDB();
 			if (n != this)
 			{
 				m_next = h256();
 				delete this; // TODO remove from leveldb
 			}
-			TrieBranchNodeCJ* ret = new TrieBranchNodeCJ(f, n);
+			TrieBranchNodeCJ* ret = new TrieBranchNodeCJ(f, n->hash256());
 			ret->insert(_key, _value);
 			ret->insertNodeInDB();
 			return ret;

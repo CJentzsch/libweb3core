@@ -26,6 +26,7 @@
 #include <libdevcore/MemoryDB.h>
 #include <libdevcore/TrieDB.h>
 #include <libdevcore/ctriedb.h>
+#include "MemTrie.h"
 using namespace std;
 using namespace dev;
 
@@ -534,18 +535,19 @@ BOOST_AUTO_TEST_CASE(ChristophExampleHashed)
 	BOOST_CHECK(t.root() == h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
 }
 
-//BOOST_AUTO_TEST_CASE(CMemTrieExample)
-//{
-//	//MemoryDB m;
-//	CMemTrie t; //ChristophsPMTree<MemoryDB> t(&m);
+BOOST_AUTO_TEST_CASE(CMemTrieExample)
+{
+	//MemoryDB m;
+	MemTrie t; //ChristophsPMTree<MemoryDB> t(&m);
 
-//	t.insert("dog", "puppy");
-//	t.insert("horse", "stallion");
-//	t.insert("do", "verb");
-//	t.insert("doge", "coin");
-//	cout << "root: " << t.hash256() << endl;
-//	BOOST_CHECK(t.hash256() == h256("0x5991bb8c6514148a29db676a14ac506cd2cd5775ace63c30a4fe457715e9ac84"));
-//}
+	t.insert("dog", "puppy");
+	t.insert("horse", "stallion");
+	t.insert("do", "verb");
+	t.insert("doge", "coin");
+	cout << "root: " << t.hash256() << endl;
+	BOOST_CHECK_EQUAL(t.at("dog"), "puppy");
+	BOOST_CHECK(t.hash256() == h256("0x5991bb8c6514148a29db676a14ac506cd2cd5775ace63c30a4fe457715e9ac84"));
+}
 
 BOOST_AUTO_TEST_CASE(BaseTrieExample)
 {
@@ -567,11 +569,41 @@ BOOST_AUTO_TEST_CASE(BaseTrieExampleHashed)
 	BaseTrie<h256, MemoryDB> t(&m); //ChristophsPMTree<MemoryDB> t(&m);
 
 	t.insert(asBytes("dog"), asBytes("puppy"));
-	t.insert(asBytes("horse"), asBytes("stallion"));
-	t.insert(asBytes("do"), asBytes("verb"));
-	t.insert(asBytes("doge"), asBytes("coin"));
+	//t.insert(asBytes("horse"), asBytes("stallion"));
+	//t.insert(asBytes("do"), asBytes("verb"));
+	//t.insert(asBytes("doge"), asBytes("coin"));
 	cout << "root: " << t.root() << endl;
-	BOOST_CHECK(t.root() == h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
+	bytes dog = asBytes("dog");
+
+	cout << "at dog: " << t.at(&dog) << " should be: " << asBytes("puppy") << endl;
+	BOOST_CHECK_EQUAL(t.at(&dog), "puppy");
+	//BOOST_CHECK(t.root() == h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
+}
+
+BOOST_AUTO_TEST_CASE(StoreAndLookUpNode)
+{
+	bytes key = fromHex("42");
+	bytes nibbleKey = asNibbles(&key);
+	string value("value");
+	MemoryDB m;
+
+	TrieLeafNodeCJ node(&nibbleKey, value);
+	cout << "nibbleKey: " << nibbleKey << endl;
+	cout << "m_ext: " << node.m_ext << endl;
+	h256 hash = node.hash256();
+	node.setDB(&m);
+	node.insertNodeInDB();
+	cout << "create node\n";
+	TrieLeafNodeCJ* node2 = dynamic_cast<TrieLeafNodeCJ*>(node.lookupNode(hash));
+
+	cout << "hash: " << hash << "hash nodes 2: " << node2->hash256() << endl;
+	cout << "at(key): " << node2->at(&nibbleKey) << endl;
+	BOOST_CHECK(node2->hash256() == hash);
+	cout << "key: " << key << endl;
+	cout << "m_ext: " << node2->m_ext << endl;
+	auto h = asNibbles(&key);
+	cout << "last check\n";
+	BOOST_CHECK(node2->at(&nibbleKey) == string("value"));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

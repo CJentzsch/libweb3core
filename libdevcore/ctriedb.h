@@ -45,6 +45,9 @@ public:
 	bytes rlp() const { RLPStream s; makeRLP(s); return s.out(); }
 	void mark() { m_hash256 = h256(); }
 
+	void setDB(BaseDB* _db){m_db = _db;}
+	BaseDB* getDB() {return m_db;}
+
 protected:
 	virtual void makeRLP(RLPStream& _intoStream) const = 0;
 
@@ -52,7 +55,7 @@ protected:
 	virtual void debugPrintBody(std::string const& _indent = "") const = 0;
 #endif
 
-	static TrieNode* newBranch(bytesConstRef _k1, std::string const& _v1, bytesConstRef _k2, std::string const& _v2);
+	static TrieNode* newBranch(bytesConstRef _k1, std::string const& _v1, bytesConstRef _k2, std::string const& _v2);	
 
 private:
 	mutable h256 m_hash256; // TODO remove?
@@ -91,6 +94,8 @@ public:
 
 	std::string operator[](_KeyType _k) const { return at(_k); }
 	std::string at(_KeyType _k) const { return atInternal(bytesConstRef((byte const*)&_k, sizeof(_KeyType))); }
+	std::string at(bytes const& _key) {return atInternal(&_key); }
+	std::string at(bytesConstRef const& _key) {return atInternal(_key); }
 
 	void insert(_KeyType const& _key, bytesConstRef _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
 	void insert(_KeyType const& _key, bytes const& _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), bytesConstRef(&_value)); }
@@ -175,7 +180,7 @@ protected:
 class TrieExtNodeCJ: public TrieNode
 {
 public:
-	TrieExtNodeCJ(bytesConstRef _bytes): m_ext(_bytes.begin(), _bytes.end()) {}
+	TrieExtNodeCJ(bytesConstRef _bytes): m_ext(_bytes.begin(), _bytes.end()) {cout << "m_ext in constructor:" << m_ext << endl;}
 
 	bytes m_ext;
 };
@@ -257,7 +262,7 @@ public:
 	}
 #endif
 
-	virtual std::string const& at(bytesConstRef _key) const override { return contains(_key) ? m_value : c_nullString; }
+	virtual std::string const& at(bytesConstRef _key) const override {cout << "contains: " << contains(_key) << endl; return contains(_key) ? m_value : c_nullString; }
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) override;
 	virtual TrieNode* remove(bytesConstRef _key) override;
 	virtual void makeRLP(RLPStream& _parentStream) const override;
@@ -265,7 +270,13 @@ public:
 	string type() {return string("Leaf");}
 
 private:
-	bool contains(bytesConstRef _key) const { return _key.size() == m_ext.size() && !memcmp(_key.data(), m_ext.data(), _key.size()); }
+	bool contains(bytesConstRef _key) const
+	{
+		cout << "size check: " << (_key.size() == m_ext.size())  << " _key.size(): " << _key.size() << " m_ext.size(): " << m_ext.size() << endl;
+		cout << "memcmp check: " << memcmp(_key.data(), m_ext.data(), _key.size()) << endl;
+		cout << "key: " << _key << " m_ext: " << m_ext << endl;
+		return _key.size() == m_ext.size() && !memcmp(_key.data(), m_ext.data(), _key.size());
+	}
 
 	std::string m_value;
 };
@@ -322,30 +333,40 @@ void BaseTrie<_KeyType, _DB>::debugPrint()
 template <class _KeyType, class _DB>
 std::string const& BaseTrie<_KeyType, _DB>::atInternal(bytesConstRef _key) const
 {
+	cout << "atInternal key: " << _key << endl;
 	if (!m_rootNode)
 		return c_nullString;
 
 	if (m_hashed)
 	{
 		h256 key = sha3(_key);
+		cout << "atInternal hashed key: " << key << endl;
 		_key = bytesConstRef((byte const*)&key, sizeof(h256));
+		cout << "atInternal formatted key: " << key << endl;
 	}
 
 	auto h = asNibbles(_key);
+	cout << "atInternal nibbled key: " << h << endl;
 	return m_rootNode->at(bytesConstRef(&h));
 }
 
 template <class _KeyType, class _DB>
 void BaseTrie<_KeyType, _DB>::insertInternal(bytesConstRef _key, bytesConstRef _value)
 {
+	cout << "insertInternal key: " << _key << endl;
 	if (m_hashed)
 	{
 		h256 key = sha3(_key);
+		cout << "insertInternal hashed key: " << key << endl;
+
 		_key = bytesConstRef((byte const*)&key, sizeof(h256));
+		cout << "insertInternal formatted key: " << key << endl;
+
 	}
 	if (_value.empty())
 		removeInternal(_key);
 	auto h = asNibbles(_key);
+	cout << "insertInternal nibbled key: " << h << endl;
 
 	m_rootNode = m_rootNode ? m_rootNode->insert(bytesConstRef(&h), _value.toString()) : new TrieLeafNodeCJ(bytesConstRef(&h), _value.toString());
 

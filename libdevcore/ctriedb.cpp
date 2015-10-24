@@ -25,16 +25,20 @@ void TrieNode::insertNodeInDB()
 
 TrieNode* TrieNode::lookupNode(h256 const& _h) const
 {
-	(void)_h;
-	return new TrieInfixNodeCJ(bytesConstRef(), h256());
-//	RLP rlp(m_db->lookup(_h));
-//	// construct Node
+	//(void)_h;
+	//return new TrieInfixNodeCJ(bytesConstRef(), h256());
+	RLP rlp(m_db->lookup(_h));
+	// construct Node
 //	if (rlp.itemCount() == 17)
 //	{
 //		// branch node
-////		assert(rlp.isList());
-////		std::array<TrieNode*, 16> nodes;
-////		for (auto const& node : nodes)
+//		assert(rlp.isList());
+//		std::array<h256, 16> nodes;
+//		for (byte i = 0; i < 16; i++)
+//		{
+//			cout << "rlp[i].payload().size(): " << rlp[i].payload().size() << endl;
+//			nodes[i] = rlp[i].toHash<h256>();
+//		}
 
 
 ////		TrieBranchNodeCJ* n = new TrieBranchNodeCJ();
@@ -44,10 +48,13 @@ TrieNode* TrieNode::lookupNode(h256 const& _h) const
 //		// TrieExtNodeCJ
 //		if (rlp[0].payload()[0] & 0x20 != 0)
 //			// is leaf
+	bytes key = asNibbles(rlp[0].toBytesConstRef().cropped(1)); //remove prefix
+	TrieLeafNodeCJ* leaf = new TrieLeafNodeCJ(&key, rlp[1].payload().toString());
+	return leaf;
 //			;
 //		else
 //			// is Infix
-	//TrieInfixNodeCJ* node = new TrieInfixNodeCJ(rlp[0].payload());
+//	TrieInfixNodeCJ* node = new TrieInfixNodeCJ(rlp[0].payload());
 //			;
 
 //	}
@@ -300,12 +307,14 @@ TrieNode* TrieLeafNodeCJ::insert(bytesConstRef _key, std::string const& _value)
 	mark();
 	if (contains(_key))
 	{
+		cout << "contain branch\n";
 		m_value = _value;
 		this->insertNodeInDB();
 		return this; // TODO add to leveldb
 	}
 	else
 	{
+		cout << "create branchnode\n";
 		// create new trie.
 		auto n = TrieNode::newBranch(_key, _value, bytesConstRef(&m_ext), m_value);
 		delete this;

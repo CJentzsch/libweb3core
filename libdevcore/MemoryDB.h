@@ -32,13 +32,30 @@
 namespace dev
 {
 
+class BaseDB
+{
+public:
+	BaseDB() {}
+	virtual ~BaseDB() {}
+
+	virtual std::string lookup(h256 const& _h) const = 0;
+	virtual bool exists(h256 const& _h) const = 0;
+	virtual void insert(h256 const& _h, bytesConstRef _v) = 0;
+	virtual bool kill(h256 const& _h) = 0;
+
+	virtual bytes lookupAux(h256 const& _h) const = 0;
+	virtual void removeAux(h256 const& _h) = 0;
+	virtual void insertAux(h256 const& _h, bytesConstRef _v) = 0;
+
+};
+
 struct DBChannel: public LogChannel  { static const char* name(); static const int verbosity = 18; };
 struct DBWarn: public LogChannel  { static const char* name(); static const int verbosity = 1; };
 
 #define dbdebug clog(DBChannel)
 #define dbwarn clog(DBWarn)
 
-class MemoryDB
+class MemoryDB: public BaseDB
 {
 	friend class EnforceRefs;
 
@@ -51,15 +68,15 @@ public:
 	void clear() { m_main.clear(); }	// WARNING !!!! didn't originally clear m_refCount!!!
 	std::unordered_map<h256, std::string> get() const;
 
-	std::string lookup(h256 const& _h) const;
-	bool exists(h256 const& _h) const;
-	void insert(h256 const& _h, bytesConstRef _v);
-	bool kill(h256 const& _h);
+	virtual std::string lookup(h256 const& _h) const override;
+	virtual bool exists(h256 const& _h) const override;
+	virtual void insert(h256 const& _h, bytesConstRef _v) override;
+	virtual bool kill(h256 const& _h) override;
 	void purge();
 
-	bytes lookupAux(h256 const& _h) const;
-	void removeAux(h256 const& _h);
-	void insertAux(h256 const& _h, bytesConstRef _v);
+	virtual bytes lookupAux(h256 const& _h) const override;
+	virtual void removeAux(h256 const& _h) override;
+	virtual void insertAux(h256 const& _h, bytesConstRef _v) override;
 
 	h256Hash keys() const;
 

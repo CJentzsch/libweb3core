@@ -19,6 +19,7 @@ namespace dev
 
 class TrieNode
 {
+	template<class U,class V> friend class BaseTrie;
 public:
 	TrieNode() {}
 	virtual ~TrieNode() {}
@@ -28,6 +29,8 @@ public:
 	virtual TrieNode* remove(bytesConstRef _key) = 0;
 	void putRLP(RLPStream& _parentStream) const;
 
+	void insertNodeInDB();
+
 #if ENABLE_DEBUG_PRINT
 	void debugPrint(std::string const& _indent = "") const { std::cerr << std::hex << hash256() << ":" << std::dec << std::endl; debugPrintBody(_indent); }
 #endif
@@ -36,8 +39,6 @@ public:
 	h256 hash256() const { RLPStream s; makeRLP(s); return dev::sha3(s.out()); }
 	bytes rlp() const { RLPStream s; makeRLP(s); return s.out(); }
 	void mark() { m_hash256 = h256(); }
-
-	static std::vector<TrieNode*> inserts;
 
 protected:
 	virtual void makeRLP(RLPStream& _intoStream) const = 0;
@@ -50,6 +51,7 @@ protected:
 
 private:
 	mutable h256 m_hash256;
+	static BaseDB* m_db;
 };
 
 static const std::string c_nullString;
@@ -61,12 +63,12 @@ template <class _KeyType, class _DB>
 class BaseTrie: public _DB
 {
 public:
-	explicit BaseTrie(_DB* _db = nullptr): m_hashed(true), m_rootNode(nullptr), m_db(_db) {}
-	BaseTrie(_DB* _db, h256 const& _root, Verification _v = Verification::Normal): m_hashed(true), m_rootNode(nullptr), m_root(_root), m_db(_db) {(void)_v;}
+	explicit BaseTrie(_DB* _db = nullptr): m_hashed(true), m_rootNode(nullptr), m_db(_db) { TrieNode::m_db = _db; }
+	BaseTrie(_DB* _db, h256 const& _root, Verification _v = Verification::Normal): m_hashed(true), m_rootNode(nullptr), m_root(_root), m_db(_db) {(void)_v; TrieNode::m_db = _db;}
 	~BaseTrie() { delete m_rootNode; }
 
-	void open(_DB* _db) { m_db = _db; }
-	void open(_DB* _db, h256 const& _root, Verification _v = Verification::Normal) { m_db = _db; setRoot(_root, _v); }
+	void open(_DB* _db) { m_db = _db; TrieNode::m_db = _db; }
+	void open(_DB* _db, h256 const& _root, Verification _v = Verification::Normal) { m_db = _db; setRoot(_root, _v); TrieNode::m_db = _db; }
 
 	void setRoot(h256 const& _root, Verification _v = Verification::Normal);
 
@@ -89,7 +91,7 @@ public:
 	void insert(_KeyType const& _key, bytes const& _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), bytesConstRef(&_value)); }
 	void insert(bytes const& _key, bytes const& _value) { insertInternal(bytesConstRef(&_key), bytesConstRef(&_value)); }
 
-	void remove(_KeyType const& _key) {  removeInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType))); }
+	void remove(_KeyType const& _key) { removeInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType))); }
 
 	void insertNode(TrieNode* _node);
 	void insertNode(bytesConstRef _v) { auto h = sha3(_v); m_db->insert(h, _v);}
@@ -275,18 +277,8 @@ private:
 template <class _KeyType, class _DB>
 void BaseTrie<_KeyType, _DB>::insertNode(TrieNode* _node)
 {
-	//(void) _node;
 	bytes rlp = _node->rlp(); // horribly inefficient - needs improvement TODO
 	m_db->insert(_node->hash256(), bytesConstRef(&rlp));
-
-	// insert nodes from TrieNode::inserts list
-	for (auto const& p: TrieNode::inserts)
-	{
-		bytes rlp = p->rlp();
-		m_db->insert(p->hash256(), bytesConstRef(&rlp));
-		delete p;
-	}
-	TrieNode::inserts.clear();
 }
 
 template <class _KeyType, class _DB>

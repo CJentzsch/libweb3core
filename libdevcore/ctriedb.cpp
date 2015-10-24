@@ -5,8 +5,8 @@ using namespace dev;
 
 namespace dev
 {
-
-std::vector<TrieNode*> TrieNode::inserts = {};
+BaseDB* TrieNode::m_db = nullptr;
+//std::vector<TrieNode*> TrieNode::inserts = {};
 
 void TrieNode::putRLP(RLPStream& _parentStream) const
 {
@@ -16,6 +16,12 @@ void TrieNode::putRLP(RLPStream& _parentStream) const
 		_parentStream.APPEND_CHILD(s.out());
 	else
 		_parentStream << dev::sha3(s.out());
+}
+
+void TrieNode::insertNodeInDB()
+{
+	bytes rlp = this->rlp(); // horribly inefficient - needs improvement TODO
+	m_db->insert(hash256(), bytesConstRef(&rlp));
 }
 
 void TrieBranchNode::makeRLP(RLPStream& _intoStream) const
@@ -48,16 +54,29 @@ TrieNode* TrieNode::newBranch(bytesConstRef _k1, std::string const& _v1, bytesCo
 
 	TrieNode* ret;
 	if (_k1.size() == prefix)
-		ret = new TrieBranchNode(_k2[prefix], new TrieLeafNode(_k2.cropped(prefix + 1), _v2), _v1);
+	{
+		TrieLeafNode* leaf = new TrieLeafNode(_k2.cropped(prefix + 1), _v2);
+		leaf->insertNodeInDB();
+		ret = new TrieBranchNode(_k2[prefix], leaf, _v1);
+	}
 	else if (_k2.size() == prefix)
-		ret = new TrieBranchNode(_k1[prefix], new TrieLeafNode(_k1.cropped(prefix + 1), _v1), _v2);
+	{
+		TrieLeafNode* leaf = new TrieLeafNode(_k1.cropped(prefix + 1), _v1);
+		leaf->insertNodeInDB();
+		ret = new TrieBranchNode(_k1[prefix], leaf, _v2);
+	}
 	else // both continue after split
-		ret = new TrieBranchNode(_k1[prefix], new TrieLeafNode(_k1.cropped(prefix + 1), _v1), _k2[prefix], new TrieLeafNode(_k2.cropped(prefix + 1), _v2));
-
+	{
+		TrieLeafNode* leaf1 = new TrieLeafNode(_k1.cropped(prefix + 1), _v1);
+		leaf1->insertNodeInDB();
+		TrieLeafNode* leaf2 = new TrieLeafNode(_k2.cropped(prefix + 1), _v2);
+		leaf2->insertNodeInDB();
+		ret = new TrieBranchNode(_k1[prefix], leaf1, _k2[prefix], leaf2);
+	}
 	if (prefix)
 		// have shared prefix - split.
 		ret = new TrieInfixNode(_k1.cropped(0, prefix), ret);
-	inserts.push_back(ret); // TODO probably need to add more here
+	ret->insertNodeInDB();
 	return ret;
 }
 
@@ -82,10 +101,10 @@ TrieNode* TrieBranchNode::insert(bytesConstRef _key, std::string const& _value)
 			m_nodes[_key[0]] = new TrieLeafNode(_key.cropped(1), _value); // TODO add to leveldb
 		else
 			m_nodes[_key[0]] = m_nodes[_key[0]]->insert(_key.cropped(1), _value);
-		inserts.push_back(m_nodes[_key[0]]);
+		m_nodes[_key[0]]->insertNodeInDB();
 	}
-	inserts.push_back(this);
-	return this; // TODO add to leveldb
+	this->insertNodeInDB();
+	return this;
 }
 
 TrieNode* TrieBranchNode::remove(bytesConstRef _key)
@@ -102,7 +121,7 @@ TrieNode* TrieBranchNode::remove(bytesConstRef _key)
 		m_nodes[_key[0]] = m_nodes[_key[0]]->remove(_key.cropped(1));
 		return rejig();
 	}
-	inserts.push_back(this);
+	this->insertNodeInDB();
 	return this;
 }
 
@@ -116,7 +135,7 @@ TrieNode* TrieBranchNode::rejig()
 		// switch to leaf
 		auto r = new TrieLeafNode(bytesConstRef(), m_value);
 		delete this;
-		inserts.push_back(r);
+		r->insertNodeInDB();
 		return r;
 	}
 	else if (n < 16 && m_value.empty())
@@ -128,7 +147,7 @@ TrieNode* TrieBranchNode::rejig()
 			m_nodes[n] = nullptr;
 			delete this;
 			TrieNode* node = new TrieInfixNode(bytesConstRef(&n, 1), b);
-			inserts.push_back(node);
+			node->insertNodeInDB();
 			return node;
 		}
 		else
@@ -139,11 +158,11 @@ TrieNode* TrieBranchNode::rejig()
 			pushFront(x->m_ext, n);
 			m_nodes[n] = nullptr;
 			delete this;
-			inserts.push_back(x);
+			x->insertNodeInDB();
 			return x;
 		}
 	}
-	inserts.push_back(this);
+	this->insertNodeInDB();
 	return this;
 }
 
@@ -168,7 +187,7 @@ TrieNode* TrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
 	if (contains(_key))
 	{
 		m_next = m_next->insert(_key.cropped(m_ext.size()), _value);
-		inserts.push_back(this);
+		this->insertNodeInDB();
 		return this; // TODO add to leveldb
 	}
 	else
@@ -180,7 +199,7 @@ TrieNode* TrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
 			// instead of pop_front()...
 			trimFront(m_ext, prefix);
 			TrieInfixNode* ret = new TrieInfixNode(_key.cropped(0, prefix), insert(_key.cropped(prefix), _value));
-			inserts.push_back(ret);
+			ret->insertNodeInDB();
 			return ret; // TODO add to leveldb
 		}
 		else
@@ -196,7 +215,7 @@ TrieNode* TrieInfixNode::insert(bytesConstRef _key, std::string const& _value)
 			}
 			TrieBranchNode* ret = new TrieBranchNode(f, n); // TODO add to leveldb
 			ret->insert(_key, _value);
-			inserts.push_back(ret);
+			ret->insertNodeInDB();
 			return ret;
 		}
 	}
@@ -218,7 +237,7 @@ TrieNode* TrieInfixNode::remove(bytesConstRef _key)
 			p->mark();
 			m_next = nullptr;
 			delete this;
-			inserts.push_back(p);
+			p->insertNodeInDB();
 			return p;
 		}
 		if (!m_next)
@@ -227,7 +246,7 @@ TrieNode* TrieInfixNode::remove(bytesConstRef _key)
 			return nullptr;
 		}
 	}
-	inserts.push_back(this);
+	this->insertNodeInDB();
 	return this;
 }
 
@@ -238,7 +257,7 @@ TrieNode* TrieLeafNode::insert(bytesConstRef _key, std::string const& _value)
 	if (contains(_key))
 	{
 		m_value = _value;
-		inserts.push_back(this);
+		this->insertNodeInDB();
 		return this; // TODO add to leveldb
 	}
 	else
@@ -246,7 +265,7 @@ TrieNode* TrieLeafNode::insert(bytesConstRef _key, std::string const& _value)
 		// create new trie.
 		auto n = TrieNode::newBranch(_key, _value, bytesConstRef(&m_ext), m_value);
 		delete this;
-		inserts.push_back(n);
+		n->insertNodeInDB();
 		return n;
 	}
 }
@@ -258,7 +277,7 @@ TrieNode* TrieLeafNode::remove(bytesConstRef _key)
 		delete this;
 		return nullptr;
 	}
-	inserts.push_back(this);
+	this->insertNodeInDB();
 	return this;
 }
 }

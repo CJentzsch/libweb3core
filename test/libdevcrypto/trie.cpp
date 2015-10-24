@@ -104,7 +104,7 @@ BOOST_AUTO_TEST_CASE(hex_encoded_securetrie_test)
 			GenericTrieDB<MemoryDB> t(&m);
 			MemoryDB hm;
 			EnforceRefs hr(hm, true);
-			HashedGenericTrieDB<MemoryDB> ht(&hm);
+			BaseTrie<h256,MemoryDB> ht(&hm);
 			MemoryDB fm;
 			EnforceRefs fr(fm, true);
 			FatGenericTrieDB<MemoryDB> ft(&fm);
@@ -171,7 +171,7 @@ BOOST_AUTO_TEST_CASE(trie_test_anyorder)
 			GenericTrieDB<MemoryDB> t(&m);
 			MemoryDB hm;
 			EnforceRefs hr(hm, true);
-			HashedGenericTrieDB<MemoryDB> ht(&hm);
+			BaseTrie<h256, MemoryDB> ht(&hm);
 			MemoryDB fm;
 			EnforceRefs fr(fm, true);
 			FatGenericTrieDB<MemoryDB> ft(&fm);
@@ -256,7 +256,7 @@ BOOST_AUTO_TEST_CASE(trie_tests_ordered)
 		GenericTrieDB<MemoryDB> t(&m);
 		MemoryDB hm;
 		EnforceRefs hr(hm, true);
-		HashedGenericTrieDB<MemoryDB> ht(&hm);
+		BaseTrie<h256, MemoryDB> ht(&hm);
 		MemoryDB fm;
 		EnforceRefs fr(fm, true);
 		FatGenericTrieDB<MemoryDB> ft(&fm);

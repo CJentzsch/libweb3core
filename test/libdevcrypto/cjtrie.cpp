@@ -26,11 +26,11 @@
 #include <libdevcore/MemoryDB.h>
 #include <libdevcore/TrieDB.h>
 #include <libdevcore/ctriedb.h>
-//using namespace std;
-//using namespace dev;
+using namespace std;
+using namespace dev;
 
-//namespace dev
-//{
+namespace dev
+{
 
 //#define ENABLE_DEBUG_PRINT 0
 
@@ -73,7 +73,7 @@
 //	mutable h256 m_hash256;
 //};
 
-//static const std::string c_nullString;
+////static const std::string c_nullString;
 
 //class CTrieExtNode: public CMemTrieNode
 //{
@@ -405,6 +405,12 @@
 
 //CMemTrieNode* CTrieLeafNode::insert(bytesConstRef _key, std::string const& _value)
 //{
+//	cout << "00000000000000000000000000000 TrieLeafNode\n" << flush;
+//	printf("AHA\n");
+//	cnote << "GGGGGGGGGGGGGGGGGGGGGG\n";
+//	assert(_value.size());
+//	assert(false);
+
 //	assert(_value.size());
 //	mark();
 //	if (contains(_key))
@@ -479,7 +485,7 @@
 //	}
 //}
 
-//}
+}
 
 BOOST_AUTO_TEST_SUITE(trieTrivial)
 
@@ -520,10 +526,10 @@ BOOST_AUTO_TEST_CASE(ChristophExampleHashed)
 	FatGenericTrieDB<MemoryDB> t(&m); //ChristophsPMTree<MemoryDB> t(&m);
 	t.init();	// initialise as empty tree.
 
-	t.insert(asBytes("dog"), asBytes("puppy"));
-	t.insert(asBytes("horse"), asBytes("stallion"));
-	t.insert(asBytes("do"), asBytes("verb"));
-	t.insert(asBytes("doge"), asBytes("coin"));
+	t.insert(string("dog"), string("puppy"));
+	t.insert(string("horse"), string("stallion"));
+	t.insert(string("do"), string("verb"));
+	t.insert(string("doge"), string("coin"));
 	cout << "root: " << t.root() << endl;
 	BOOST_CHECK(t.root() == h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
 }
@@ -531,14 +537,14 @@ BOOST_AUTO_TEST_CASE(ChristophExampleHashed)
 //BOOST_AUTO_TEST_CASE(CMemTrieExample)
 //{
 //	//MemoryDB m;
-//	BaseTrie<std::string, MemoryDB> t; //ChristophsPMTree<MemoryDB> t(&m);
+//	CMemTrie t; //ChristophsPMTree<MemoryDB> t(&m);
 
 //	t.insert("dog", "puppy");
 //	t.insert("horse", "stallion");
 //	t.insert("do", "verb");
 //	t.insert("doge", "coin");
-//	cout << "root: " << t.root() << endl;
-//	BOOST_CHECK(t.root() == h256("0x5991bb8c6514148a29db676a14ac506cd2cd5775ace63c30a4fe457715e9ac84"));
+//	cout << "root: " << t.hash256() << endl;
+//	BOOST_CHECK(t.hash256() == h256("0x5991bb8c6514148a29db676a14ac506cd2cd5775ace63c30a4fe457715e9ac84"));
 //}
 
 BOOST_AUTO_TEST_CASE(BaseTrieExample)
@@ -547,10 +553,10 @@ BOOST_AUTO_TEST_CASE(BaseTrieExample)
 	BaseTrie<h256, MemoryDB> t(&m); //ChristophsPMTree<MemoryDB> t(&m);
 	t.setHashed(false);
 
-	t.insert(asBytes("dog"), asBytes("puppy"));
-	t.insert(asBytes("horse"), asBytes("stallion"));
-	t.insert(asBytes("do"), asBytes("verb"));
-	t.insert(asBytes("doge"), asBytes("coin"));
+	t.insert(string("dog"), string("puppy"));
+	t.insert(string("horse"), string("stallion"));
+	t.insert(string("do"), string("verb"));
+	t.insert(string("doge"), string("coin"));
 	cout << "root: " << t.root() << endl;
 	BOOST_CHECK(t.root() == h256("0x5991bb8c6514148a29db676a14ac506cd2cd5775ace63c30a4fe457715e9ac84"));
 }

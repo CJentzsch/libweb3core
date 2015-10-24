@@ -27,9 +27,14 @@ public:
 	virtual std::string const& at(bytesConstRef _key) const = 0;
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) = 0;
 	virtual TrieNode* remove(bytesConstRef _key) = 0;
+
+	string type(){ return string("Node");}
+
 	void putRLP(RLPStream& _parentStream) const;
 
 	void insertNodeInDB();
+	TrieNode* lookupNode(h256 const& _h) const;
+
 
 #if ENABLE_DEBUG_PRINT
 	void debugPrint(std::string const& _indent = "") const { std::cerr << std::hex << hash256() << ":" << std::dec << std::endl; debugPrintBody(_indent); }
@@ -50,7 +55,7 @@ protected:
 	static TrieNode* newBranch(bytesConstRef _k1, std::string const& _v1, bytesConstRef _k2, std::string const& _v2);
 
 private:
-	mutable h256 m_hash256;
+	mutable h256 m_hash256; // TODO remove?
 	static BaseDB* m_db;
 };
 
@@ -89,9 +94,19 @@ public:
 
 	void insert(_KeyType const& _key, bytesConstRef _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), _value); }
 	void insert(_KeyType const& _key, bytes const& _value) { insertInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType)), bytesConstRef(&_value)); }
-	void insert(bytes const& _key, bytes const& _value) { insertInternal(bytesConstRef(&_key), bytesConstRef(&_value)); }
+
+	void insert(bytes const& _key, bytes const& _value) { insertInternal(&_key, &_value); }
+	void insert(bytesConstRef _key, bytes const& _value) { insertInternal(_key, &_value); }
+	void insert(bytes const& _key, bytesConstRef _value) { insertInternal(&_key, _value); }
+	void insert(bytesConstRef _key, bytesConstRef _value) { insertInternal(_key, _value); }
+
+	//void insert(bytes const& _key, bytes const& _value) { insertInternal(bytesConstRef(&_key), bytesConstRef(&_value)); }
 
 	void remove(_KeyType const& _key) { removeInternal(bytesConstRef((byte const*)&_key, sizeof(_KeyType))); }
+
+	void remove(bytes const& _key) { removeInternal(&_key); }
+	void remove(bytesConstRef const& _key) { removeInternal(_key); }
+
 
 	void insertNode(TrieNode* _node);
 	void insertNode(bytesConstRef _v) { auto h = sha3(_v); m_db->insert(h, _v);}
@@ -104,6 +119,8 @@ public:
 
 	h256Hash leftOvers(std::ostream* _out = nullptr) const {(void)_out; return h256Hash();}
 	void debugStructure(std::ostream& _out) const {(void)_out;}
+	bool check(bool _requireNoLeftOvers) const {(void)_requireNoLeftOvers; return true;}
+
 
 	//iterator //TODO
 
@@ -155,36 +172,41 @@ protected:
 /**/
 
 
-class TrieExtNode: public TrieNode
+class TrieExtNodeCJ: public TrieNode
 {
 public:
-	TrieExtNode(bytesConstRef _bytes): m_ext(_bytes.begin(), _bytes.end()) {}
+	TrieExtNodeCJ(bytesConstRef _bytes): m_ext(_bytes.begin(), _bytes.end()) {}
 
 	bytes m_ext;
 };
 
-class TrieBranchNode: public TrieNode
+class TrieBranchNodeCJ: public TrieNode
 {
 public:
-	TrieBranchNode(std::string const& _value): m_value(_value)
+
+	TrieBranchNodeCJ(std::array<TrieNode*, 16> const _nodes, std::string const& _value): m_nodes(_nodes), m_value(_value) {}
+
+	TrieBranchNodeCJ(std::string const& _value): m_value(_value)
 	{
 		memset(m_nodes.data(), 0, sizeof(TrieNode*) * 16);
 	}
 
-	TrieBranchNode(byte _i1, TrieNode* _n1, std::string const& _value = std::string()): m_value(_value)
+	TrieBranchNodeCJ(byte _i1, TrieNode* _n1, std::string const& _value = std::string()): m_value(_value)
 	{
 		memset(m_nodes.data(), 0, sizeof(TrieNode*) * 16);
 		m_nodes[_i1] = _n1;
 	}
 
-	TrieBranchNode(byte _i1, TrieNode* _n1, byte _i2, TrieNode* _n2)
+	TrieBranchNodeCJ(byte _i1, TrieNode* _n1, byte _i2, TrieNode* _n2)
 	{
 		memset(m_nodes.data(), 0, sizeof(TrieNode*) * 16);
 		m_nodes[_i1] = _n1;
 		m_nodes[_i2] = _n2;
 	}
 
-	virtual ~TrieBranchNode()
+	string type() {return string("Branch");}
+
+	virtual ~TrieBranchNodeCJ()
 	{
 		for (auto i: m_nodes)
 			delete i;
@@ -220,10 +242,10 @@ private:
 	std::string m_value;
 };
 
-class TrieLeafNode: public TrieExtNode
+class TrieLeafNodeCJ: public TrieExtNodeCJ
 {
 public:
-	TrieLeafNode(bytesConstRef _key, std::string const& _value): TrieExtNode(_key), m_value(_value) {}
+	TrieLeafNodeCJ(bytesConstRef _key, std::string const& _value): TrieExtNodeCJ(_key), m_value(_value) {}
 
 #if ENABLE_DEBUG_PRINT
 	virtual void debugPrintBody(std::string const& _indent) const
@@ -243,17 +265,19 @@ public:
 	virtual TrieNode* remove(bytesConstRef _key) override;
 	virtual void makeRLP(RLPStream& _parentStream) const override;
 
+	string type() {return string("Leaf");}
+
 private:
 	bool contains(bytesConstRef _key) const { return _key.size() == m_ext.size() && !memcmp(_key.data(), m_ext.data(), _key.size()); }
 
 	std::string m_value;
 };
 
-class TrieInfixNode: public TrieExtNode
+class TrieInfixNodeCJ: public TrieExtNodeCJ
 {
 public:
-	TrieInfixNode(bytesConstRef _key, TrieNode* _next): TrieExtNode(_key), m_next(_next) {}
-	virtual ~TrieInfixNode() { delete m_next; }
+	TrieInfixNodeCJ(bytesConstRef _key, h256 _next): TrieExtNodeCJ(_key), m_next(_next) {}
+	virtual ~TrieInfixNodeCJ() {}// delete m_next; }
 
 #if ENABLE_DEBUG_PRINT
 	virtual void debugPrintBody(std::string const& _indent) const
@@ -263,15 +287,18 @@ public:
 	}
 #endif
 
-	virtual std::string const& at(bytesConstRef _key) const override { assert(m_next); return contains(_key) ? m_next->at(_key.cropped(m_ext.size())) : c_nullString; }
+	virtual std::string const& at(bytesConstRef _key) const override { assert(m_next); return contains(_key) ? lookupNode(m_next)->at(_key.cropped(m_ext.size())) : c_nullString; }
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) override;
 	virtual TrieNode* remove(bytesConstRef _key) override;
 	virtual void makeRLP(RLPStream& _parentStream) const override;
 
+	string type() {return string("Infix");}
+
 private:
 	bool contains(bytesConstRef _key) const { return _key.size() >= m_ext.size() && !memcmp(_key.data(), m_ext.data(), m_ext.size()); }
 
-	TrieNode* m_next;
+	h256 m_next;
+	//TrieNode* m_next;
 };
 
 template <class _KeyType, class _DB>
@@ -323,7 +350,8 @@ void BaseTrie<_KeyType, _DB>::insertInternal(bytesConstRef _key, bytesConstRef _
 		removeInternal(_key);
 	auto h = asNibbles(_key);
 
-	m_rootNode = m_rootNode ? m_rootNode->insert(bytesConstRef(&h), _value.toString()) : new TrieLeafNode(bytesConstRef(&h), _value.toString());
+	m_rootNode = m_rootNode ? m_rootNode->insert(bytesConstRef(&h), _value.toString()) : new TrieLeafNodeCJ(bytesConstRef(&h), _value.toString());
+
 	insertNode(m_rootNode);
 }
 
@@ -339,7 +367,8 @@ void BaseTrie<_KeyType, _DB>::removeInternal(bytesConstRef _key)
 		}
 		auto h = asNibbles(_key);
 		m_rootNode = m_rootNode->remove(bytesConstRef(&h));
-		insertNode(m_rootNode);
+		if (m_rootNode)
+			insertNode(m_rootNode);
 	}
 }
 template <class _KeyType, class _DB>

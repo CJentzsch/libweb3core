@@ -135,7 +135,7 @@ bool OverlayDB::exists(h256 const& _h) const
 	return !ret.empty();
 }
 
-void OverlayDB::kill(h256 const& _h)
+bool OverlayDB::kill(h256 const& _h)
 {
 #if ETH_PARANOIA || 1
 	if (!MemoryDB::kill(_h))
@@ -149,7 +149,9 @@ void OverlayDB::kill(h256 const& _h)
 			cnote << "Decreasing DB node ref count below zero with no DB node. Probably have a corrupt Trie." << _h;
 
 		// TODO: for 1.1: ref-counted triedb.
+		return false;
 	}
+	return true;
 #else
 	MemoryDB::kill(_h);
 #endif

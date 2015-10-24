@@ -43,7 +43,7 @@ public:
 
 	std::string lookup(h256 const& _h) const;
 	bool exists(h256 const& _h) const;
-	void kill(h256 const& _h);
+	bool kill(h256 const& _h);
 	bool deepkill(h256 const& _h);
 
 	bytes lookupAux(h256 const& _h) const;

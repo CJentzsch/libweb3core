@@ -32,7 +32,7 @@ RLP::RLP(bytesConstRef _d, Strictness _s):
 	if ((_s & FailIfTooBig) && actualSize() < _d.size())
 	{
 		if (_s & ThrowOnFail)
-			BOOST_THROW_EXCEPTION(OversizeRLP());
+			BOOST_THROW_EXCEPTION(OversizeRLP() << RequirementError((bigint)actualSize(), (bigint)_d.size()));
 		else
 			m_data.reset();
 	}

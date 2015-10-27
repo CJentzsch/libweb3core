@@ -33,7 +33,7 @@ public:
 	void putRLP(RLPStream& _parentStream) const;
 
 	void insertNodeInDB();
-	TrieNode* lookupNode(h256 const& _h) const;
+	TrieNode* lookupNode(const bytes &_h) const;
 
 
 #if ENABLE_DEBUG_PRINT
@@ -43,6 +43,7 @@ public:
 	/// 256-bit hash of the node - this is a SHA-3/256 hash of the RLP of the node.
 	h256 hash256() const { RLPStream s; makeRLP(s); return dev::sha3(s.out()); }
 	bytes rlp() const { RLPStream s; makeRLP(s); return s.out(); }
+	bytes rlpOrHash() const { bytes rlp(this->rlp()); return rlp.size() < 32 ? rlp : dev::sha3(rlp).asBytes(); }
 	void mark() { m_hash256 = h256(); }
 
 	void setDB(BaseDB* _db){m_db = _db;}
@@ -189,22 +190,22 @@ class TrieBranchNodeCJ: public TrieNode
 {
 public:
 
-	TrieBranchNodeCJ(std::array<h256, 16> const _nodes, std::string const& _value): m_nodes(_nodes), m_value(_value) {}
+	TrieBranchNodeCJ(std::array<bytes, 16> const& _nodes, std::string const& _value): m_nodes(_nodes), m_value(_value) {}
 
 	TrieBranchNodeCJ(std::string const& _value): m_value(_value)
 	{
 		memset(m_nodes.data(), 0, sizeof(h256) * 16);
 	}
 
-	TrieBranchNodeCJ(byte _i1, h256 _n1, std::string const& _value = std::string()): m_value(_value)
+	TrieBranchNodeCJ(byte _i1, bytes _n1, std::string const& _value = std::string()): m_value(_value)
 	{
-		memset(m_nodes.data(), 0, sizeof(h256*) * 16);
+		memset(m_nodes.data(), 0, sizeof(bytes) * 16);
 		m_nodes[_i1] = _n1;
 	}
 
-	TrieBranchNodeCJ(byte _i1, h256 _n1, byte _i2, h256 _n2)
+	TrieBranchNodeCJ(byte _i1, bytes _n1, byte _i2, bytes _n2)
 	{
-		memset(m_nodes.data(), 0, sizeof(TrieNode*) * 16);
+		memset(m_nodes.data(), 0, sizeof(bytes) * 16);
 		m_nodes[_i1] = _n1;
 		m_nodes[_i2] = _n2;
 	}
@@ -239,7 +240,7 @@ private:
 
 	TrieNode* rejig();
 
-	std::array<h256, 16> m_nodes;
+	std::array<bytes, 16> m_nodes;
 	//std::array<TrieNode*, 16> m_nodes;
 	std::string m_value;
 };
@@ -262,7 +263,7 @@ public:
 	}
 #endif
 
-	virtual std::string const& at(bytesConstRef _key) const override {cout << "contains: " << contains(_key) << endl; return contains(_key) ? m_value : c_nullString; }
+	virtual std::string const& at(bytesConstRef _key) const override {cout << "key at leaf: " << _key << endl; cout << "contains: " << contains(_key) << endl; return contains(_key) ? m_value : c_nullString; }
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) override;
 	virtual TrieNode* remove(bytesConstRef _key) override;
 	virtual void makeRLP(RLPStream& _parentStream) const override;
@@ -284,7 +285,8 @@ private:
 class TrieInfixNodeCJ: public TrieExtNodeCJ
 {
 public:
-	TrieInfixNodeCJ(bytesConstRef _key, h256 _next): TrieExtNodeCJ(_key), m_next(_next) {}
+	TrieInfixNodeCJ(bytesConstRef _key, bytesConstRef _next): TrieExtNodeCJ(_key),  m_next(_next.begin(), _next.end()) {}
+	TrieInfixNodeCJ(bytesConstRef _key, bytes _next): TrieExtNodeCJ(_key),  m_next(_next) {}
 	virtual ~TrieInfixNodeCJ() {}// delete m_next; }
 
 #if ENABLE_DEBUG_PRINT
@@ -295,7 +297,7 @@ public:
 	}
 #endif
 
-	virtual std::string const& at(bytesConstRef _key) const override { assert(m_next); return contains(_key) ? lookupNode(m_next)->at(_key.cropped(m_ext.size())) : c_nullString; }
+	virtual std::string const& at(bytesConstRef _key) const override {cout << "key at infix: " << _key << endl << "m_ext.size(): " << m_ext.size() << endl; assert(!m_next.empty()); return contains(_key) ? lookupNode(m_next)->at(_key.cropped(m_ext.size())) : c_nullString; }
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) override;
 	virtual TrieNode* remove(bytesConstRef _key) override;
 	virtual void makeRLP(RLPStream& _parentStream) const override;
@@ -305,7 +307,7 @@ public:
 private:
 	bool contains(bytesConstRef _key) const { return _key.size() >= m_ext.size() && !memcmp(_key.data(), m_ext.data(), m_ext.size()); }
 
-	h256 m_next;
+	bytes m_next;
 	//TrieNode* m_next;
 };
 

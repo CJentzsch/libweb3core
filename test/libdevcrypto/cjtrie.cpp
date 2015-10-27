@@ -529,10 +529,12 @@ BOOST_AUTO_TEST_CASE(ChristophExampleHashed)
 
 	t.insert(string("dog"), string("puppy"));
 	t.insert(string("horse"), string("stallion"));
-	t.insert(string("do"), string("verb"));
-	t.insert(string("doge"), string("coin"));
+	//t.insert(string("do"), string("verb"));
+	//t.insert(string("doge"), string("coin"));
 	cout << "root: " << t.root() << endl;
 	BOOST_CHECK(t.root() == h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
+	// 1d1918a88d87b869512ff8735e9e62eda4058bba1c3d9a75008a47a8cf74e481 only first and last//
+	// 1d5d556f96abcc20327918d9209473b0709ff666a2723575202cb03388dc0103 ony first two
 }
 
 BOOST_AUTO_TEST_CASE(CMemTrieExample)
@@ -551,26 +553,61 @@ BOOST_AUTO_TEST_CASE(CMemTrieExample)
 
 BOOST_AUTO_TEST_CASE(BaseTrieExample)
 {
+	//try
+	//{
 	MemoryDB m;
 	BaseTrie<h256, MemoryDB> t(&m); //ChristophsPMTree<MemoryDB> t(&m);
 	t.setHashed(false);
 
 	t.insert(string("dog"), string("puppy"));
 	t.insert(string("horse"), string("stallion"));
-	t.insert(string("do"), string("verb"));
-	t.insert(string("doge"), string("coin"));
+	//t.insert(string("do"), string("verb"));
+	//t.insert(string("doge"), string("coin"));
 	cout << "root: " << t.root() << endl;
-	BOOST_CHECK(t.root() == h256("0x5991bb8c6514148a29db676a14ac506cd2cd5775ace63c30a4fe457715e9ac84"));
+	BOOST_CHECK(t.root() == h256("0xebf5de461c566173ef3f27e26d180c23125f69a517865c312c0dcd9bb0c7cbed"));//  0x5991bb8c6514148a29db676a14ac506cd2cd5775ace63c30a4fe457715e9ac84"));
+
+//	}
+//	catch(Exception& _e)
+//	{
+//		cout << diagnostic_information(_e);
+//	}
+
 }
 
 BOOST_AUTO_TEST_CASE(BaseTrieExampleHashed)
 {
+	MemoryDB m1;
+	FatGenericTrieDB<MemoryDB> t1(&m1); //ChristophsPMTree<MemoryDB> t(&m);
+	t1.init();	// initialise as empty tree.
+
+	t1.insert(string("dog"), string("puppy"));
+	t1.insert(string("horse"), string("stallion"));
+	t1.insert(string("do"), string("verb"));
+	t1.insert(string("doge"), string("coin"));
+	cout << "root: " << t1.root() << endl;
+
+
+	MemoryDB m;
+	BaseTrie<h256, MemoryDB> t(&m); //ChristophsPMTree<MemoryDB> t(&m);
+
+	t.insert(string("dog"), string("puppy"));
+	t.insert(string("horse"), string("stallion"));
+	t.insert(string("do"), string("verb"));
+	t.insert(string("doge"), string("coin"));
+	cout << "root: " << t.root() << endl << flush;
+	BOOST_CHECK(t1.root() == t.root()); // h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
+}
+
+BOOST_AUTO_TEST_CASE(BaseTrieExampleHashedSingleLeaf)
+{
+	cout << "BaseTrieExampleHashed\n";
+
 	MemoryDB m;
 	BaseTrie<h256, MemoryDB> t(&m); //ChristophsPMTree<MemoryDB> t(&m);
 
 	t.insert(asBytes("dog"), asBytes("puppy"));
 	//t.insert(asBytes("horse"), asBytes("stallion"));
-	//t.insert(asBytes("do"), asBytes("verb"));
+	t.insert(asBytes("do"), asBytes("verb"));
 	//t.insert(asBytes("doge"), asBytes("coin"));
 	cout << "root: " << t.root() << endl;
 	bytes dog = asBytes("dog");
@@ -580,8 +617,9 @@ BOOST_AUTO_TEST_CASE(BaseTrieExampleHashed)
 	//BOOST_CHECK(t.root() == h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
 }
 
-BOOST_AUTO_TEST_CASE(StoreAndLookUpNode)
+BOOST_AUTO_TEST_CASE(StoreAndLookUpNodeLeaf)
 {
+	cout << "StoreAndLookUpNode\n";
 	bytes key = fromHex("42");
 	bytes nibbleKey = asNibbles(&key);
 	string value("value");
@@ -590,7 +628,13 @@ BOOST_AUTO_TEST_CASE(StoreAndLookUpNode)
 	TrieLeafNodeCJ node(&nibbleKey, value);
 	cout << "nibbleKey: " << nibbleKey << endl;
 	cout << "m_ext: " << node.m_ext << endl;
-	h256 hash = node.hash256();
+	bytes hash = node.rlpOrHash();
+	cout << "node hash: " << node.hash256() << endl;
+	cout << "hash: " << hash << endl;
+	cout << "hash _ h256: " << h256(hash) << endl;
+
+	RLP rlp(hash);
+	//cout << "rlp hash: " << rlp.toHash<h256> << endl;
 	node.setDB(&m);
 	node.insertNodeInDB();
 	cout << "create node\n";
@@ -598,12 +642,178 @@ BOOST_AUTO_TEST_CASE(StoreAndLookUpNode)
 
 	cout << "hash: " << hash << "hash nodes 2: " << node2->hash256() << endl;
 	cout << "at(key): " << node2->at(&nibbleKey) << endl;
-	BOOST_CHECK(node2->hash256() == hash);
+	BOOST_CHECK(node2->rlpOrHash() == hash);
 	cout << "key: " << key << endl;
 	cout << "m_ext: " << node2->m_ext << endl;
 	auto h = asNibbles(&key);
 	cout << "last check\n";
 	BOOST_CHECK(node2->at(&nibbleKey) == string("value"));
+}
+
+BOOST_AUTO_TEST_CASE(StoreAndLookUpNodeInfix)
+{
+	cout << "StoreAndLookUpNode\n";
+	bytes key = { 2,3 }; fromHex("dog");
+	//bytes nibbleKey = asNibbles(&key);
+
+	bytes keyI = { 1,2,3 }; fromHex("do");
+	bytes nibbleKeyI = asNibbles(&keyI);
+
+	bytes one = {1};
+
+	cout << "key: " << key << endl;
+	//cout << "nibbleKey: " << nibbleKey << endl;
+	cout << "keyI: " << keyI << endl;
+	//cout << "nibbleKeyI: " << nibbleKeyI << endl;
+
+
+	string value("value");
+	MemoryDB m;
+
+	TrieLeafNodeCJ leaf(&key, value);
+	leaf.setDB(&m);
+	leaf.insertNodeInDB();
+
+	cout << "create InfixNode\n";
+	TrieInfixNodeCJ infix(&one, leaf.rlpOrHash());
+
+	bytes hash = infix.rlpOrHash();
+
+	//RLP rlp(hash);
+	infix.setDB(&m);
+	infix.insertNodeInDB();
+
+	TrieInfixNodeCJ* node2 = dynamic_cast<TrieInfixNodeCJ*>(infix.lookupNode(hash));
+
+	BOOST_CHECK(node2->rlpOrHash() == hash);
+
+	BOOST_CHECK(node2->at(&keyI) == string("value"));
+}
+
+BOOST_AUTO_TEST_CASE(StoreAndLookUpNodeBranch)
+{
+	bytes nibbleKey = { 2 , 3, 4};
+	bytes nibbleKeyCropped = { 3, 4};
+
+	bytes nibbleKey2 = { 8 , 4, 4};
+	bytes nibbleKey2Croped = { 4, 4};
+
+	string value("puppy");
+	string value2("stallion");
+
+	MemoryDB m;
+
+	TrieLeafNodeCJ leaf(&nibbleKeyCropped, value);
+	TrieLeafNodeCJ leaf2(&nibbleKey2Croped, value2);
+
+	TrieBranchNodeCJ branch(2, leaf.rlpOrHash(), 8, leaf2.rlpOrHash());
+	branch.setDB(&m);
+	branch.insertNodeInDB();
+
+	bytes hash = branch.rlpOrHash();
+	cout << "hash of branch: " << hash << endl;
+
+	TrieBranchNodeCJ* branch2 = dynamic_cast<TrieBranchNodeCJ*>(branch.lookupNode(hash));
+cout << "done creating pointer\n" << endl;
+	BOOST_CHECK(branch2->rlpOrHash() == hash);
+
+	BOOST_CHECK(branch2->at(&nibbleKey) == string("puppy"));
+	BOOST_CHECK(branch2->at(&nibbleKey2) == string("stallion"));
+}
+
+BOOST_AUTO_TEST_CASE(StoreAndLookUpNodeBranchInfix)
+{
+	bytes nibbleKey = { 2 , 3, 4};
+	bytes nibbleKeyCropped = { 3, 4};
+
+	bytes nibbleKey2 = { 8 , 4, 4};
+	bytes nibbleKey2Croped = { 4, 4};
+
+	bytes nibbleKeyI = { 1, 1};
+	bytes nibbleKeyICroped = { 1};
+
+	bytes valueAt = { 1, 2, 3, 4};
+	bytes value2At = { 1, 8, 4, 4};
+
+	string value("puppy");
+	string value2("stallion");
+
+	MemoryDB m;
+
+	TrieLeafNodeCJ leaf(&nibbleKeyCropped, value);
+	TrieLeafNodeCJ leaf2(&nibbleKey2Croped, value2);
+
+	TrieBranchNodeCJ branch(2, leaf.rlpOrHash(), 8, leaf2.rlpOrHash());
+	branch.setDB(&m);
+	branch.insertNodeInDB();
+
+	TrieInfixNodeCJ infix(&nibbleKeyICroped, branch.rlpOrHash());
+	infix.insertNodeInDB();
+cout << "CCCCCCCCCCCCHECK for puupy\n";
+	BOOST_CHECK(infix.at(&valueAt) == string("puppy"));
+	BOOST_CHECK(infix.at(&value2At) == string("stallion"));
+	cout << "HHHHHHHHHHHHHHHhash of infix node: " << infix.rlpOrHash() << endl;
+	TrieInfixNodeCJ* infix2 = dynamic_cast<TrieInfixNodeCJ*>(infix.lookupNode(infix.rlpOrHash()));
+	cout << "done building infix2 node\n";
+
+	cout << "CCCCCCCCCCCCHECK for puupy2222\n";
+	BOOST_CHECK(infix2->at(&valueAt) == string("puppy"));
+	BOOST_CHECK(infix2->at(&value2At) == string("stallion"));
+
+
+	bytes hash = branch.rlpOrHash();
+	cout << "hash of branch: " << hash << endl;
+
+	TrieBranchNodeCJ* branch2 = dynamic_cast<TrieBranchNodeCJ*>(branch.lookupNode(hash));
+cout << "done creating pointer\n" << endl;
+	BOOST_CHECK(branch2->rlpOrHash() == hash);
+
+	BOOST_CHECK(branch2->at(&nibbleKey) == string("puppy"));
+	BOOST_CHECK(branch2->at(&nibbleKey2) == string("stallion"));
+}
+
+
+BOOST_AUTO_TEST_CASE(StoreAndLookUpNodeLargeValue)
+{
+	cout << "StoreAndLookUpNodeLLLLLLLLLLLLL\n";
+	bytes key = fromHex("42");
+	bytes nibbleKey = asNibbles(&key);
+	string value("valueLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL");
+	MemoryDB m;
+
+	TrieLeafNodeCJ node(&nibbleKey, value);
+	cout << "nibbleKey: " << nibbleKey << endl;
+	cout << "m_ext: " << node.m_ext << endl;
+	bytes hash = node.rlpOrHash();
+	cout << "node hash: " << node.hash256() << endl;
+	cout << "hash: " << hash << endl;
+	cout << "hash _ h256: " << h256(hash) << endl;
+	//cout << "rlp hash: " << RLP(hash).toHash<h256> << endl;
+	node.setDB(&m);
+	node.insertNodeInDB();
+	cout << "create node\n";
+	TrieLeafNodeCJ* node2 = dynamic_cast<TrieLeafNodeCJ*>(node.lookupNode(hash));
+
+	cout << "hash: " << hash << "hash nodes 2: " << node2->hash256() << endl;
+	cout << "at(key): " << node2->at(&nibbleKey) << endl;
+	BOOST_CHECK(node2->rlpOrHash() == hash);
+	cout << "key: " << key << endl;
+	cout << "m_ext: " << node2->m_ext << endl;
+	auto h = asNibbles(&key);
+	cout << "last check\n";
+	BOOST_CHECK(node2->at(&nibbleKey) == string("valueLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLL"));
+}
+
+BOOST_AUTO_TEST_CASE(h256AsByteContainer)
+{
+	bytes key = fromHex("42");
+	cout << "key: " << key << endl;
+	h256 hkey(key, dev::FixedHash<32u>::ConstructFromHashType::AlignLeft );
+	bytes key2 = hkey.asBytes();
+
+	cout << hkey << " size: " << key2.size() << endl;
+
+
 }
 
 BOOST_AUTO_TEST_SUITE_END()

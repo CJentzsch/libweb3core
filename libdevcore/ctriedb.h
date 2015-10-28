@@ -181,7 +181,7 @@ protected:
 class TrieExtNodeCJ: public TrieNode
 {
 public:
-	TrieExtNodeCJ(bytesConstRef _bytes): m_ext(_bytes.begin(), _bytes.end()) {cout << "m_ext in constructor:" << m_ext << endl;}
+	TrieExtNodeCJ(bytesConstRef _bytes): m_ext(_bytes.begin(), _bytes.end()) {}//cout << "m_ext in constructor:" << m_ext << endl;}
 
 	bytes m_ext;
 };
@@ -190,17 +190,19 @@ class TrieBranchNodeCJ: public TrieNode
 {
 public:
 
-	TrieBranchNodeCJ(std::array<bytes, 16> const& _nodes, std::string const& _value): m_nodes(_nodes), m_value(_value) {}
+	TrieBranchNodeCJ(std::array<bytes, 16> const& _nodes, std::string const& _value): m_nodes(_nodes), m_value(_value) {debug();}
 
 	TrieBranchNodeCJ(std::string const& _value): m_value(_value)
 	{
 		memset(m_nodes.data(), 0, sizeof(h256) * 16);
+		debug();
 	}
 
 	TrieBranchNodeCJ(byte _i1, bytes _n1, std::string const& _value = std::string()): m_value(_value)
 	{
 		memset(m_nodes.data(), 0, sizeof(bytes) * 16);
 		m_nodes[_i1] = _n1;
+		debug();
 	}
 
 	TrieBranchNodeCJ(byte _i1, bytes _n1, byte _i2, bytes _n2)
@@ -208,8 +210,10 @@ public:
 		memset(m_nodes.data(), 0, sizeof(bytes) * 16);
 		m_nodes[_i1] = _n1;
 		m_nodes[_i2] = _n2;
+		debug();
 	}
 
+	void debug() { cout << "my (branch) hash is: " << hash256() << endl;}
 	string type() {return string("Branch");}
 
 	virtual ~TrieBranchNodeCJ() {}
@@ -248,7 +252,7 @@ private:
 class TrieLeafNodeCJ: public TrieExtNodeCJ
 {
 public:
-	TrieLeafNodeCJ(bytesConstRef _key, std::string const& _value): TrieExtNodeCJ(_key), m_value(_value) {}
+	TrieLeafNodeCJ(bytesConstRef _key, std::string const& _value): TrieExtNodeCJ(_key), m_value(_value) {debug();}
 
 #if ENABLE_DEBUG_PRINT
 	virtual void debugPrintBody(std::string const& _indent) const
@@ -263,7 +267,8 @@ public:
 	}
 #endif
 
-	virtual std::string const& at(bytesConstRef _key) const override {cout << "key at leaf: " << _key << endl; cout << "contains: " << contains(_key) << endl; return contains(_key) ? m_value : c_nullString; }
+	void debug() { cout << "my (leaf) hash is: " << hash256() << endl; assert(hash256() != h256("0xe17f34f91630dcdb60abc84b54698403879f50d5721640a41be74f084a607f2f")); }
+	virtual std::string const& at(bytesConstRef _key) const override {/*cout << "key at leaf: " << _key << endl; cout << "contains: " << contains(_key) << endl*/; return contains(_key) ? m_value : c_nullString; }
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) override;
 	virtual TrieNode* remove(bytesConstRef _key) override;
 	virtual void makeRLP(RLPStream& _parentStream) const override;
@@ -273,9 +278,9 @@ public:
 private:
 	bool contains(bytesConstRef _key) const
 	{
-		cout << "size check: " << (_key.size() == m_ext.size())  << " _key.size(): " << _key.size() << " m_ext.size(): " << m_ext.size() << endl;
-		cout << "memcmp check: " << memcmp(_key.data(), m_ext.data(), _key.size()) << endl;
-		cout << "key: " << _key << " m_ext: " << m_ext << endl;
+		//cout << "size check: " << (_key.size() == m_ext.size())  << " _key.size(): " << _key.size() << " m_ext.size(): " << m_ext.size() << endl;
+		//cout << "memcmp check: " << memcmp(_key.data(), m_ext.data(), _key.size()) << endl;
+		//cout << "key: " << _key << " m_ext: " << m_ext << endl;
 		return _key.size() == m_ext.size() && !memcmp(_key.data(), m_ext.data(), _key.size());
 	}
 
@@ -285,8 +290,8 @@ private:
 class TrieInfixNodeCJ: public TrieExtNodeCJ
 {
 public:
-	TrieInfixNodeCJ(bytesConstRef _key, bytesConstRef _next): TrieExtNodeCJ(_key),  m_next(_next.begin(), _next.end()) {}
-	TrieInfixNodeCJ(bytesConstRef _key, bytes _next): TrieExtNodeCJ(_key),  m_next(_next) {}
+	TrieInfixNodeCJ(bytesConstRef _key, bytesConstRef _next): TrieExtNodeCJ(_key),  m_next(_next.begin(), _next.end()) {debug();}
+	TrieInfixNodeCJ(bytesConstRef _key, bytes _next): TrieExtNodeCJ(_key),  m_next(_next) {debug();}
 	virtual ~TrieInfixNodeCJ() {}// delete m_next; }
 
 #if ENABLE_DEBUG_PRINT
@@ -297,7 +302,8 @@ public:
 	}
 #endif
 
-	virtual std::string const& at(bytesConstRef _key) const override {cout << "key at infix: " << _key << endl << "m_ext.size(): " << m_ext.size() << endl; assert(!m_next.empty()); return contains(_key) ? lookupNode(m_next)->at(_key.cropped(m_ext.size())) : c_nullString; }
+	void debug() { cout << "my (leaf) hash is: " << hash256() << endl;}
+	virtual std::string const& at(bytesConstRef _key) const override {/*cout << "key at infix: " << _key << endl << "m_ext.size(): " << m_ext.size() << endl*/; assert(!m_next.empty()); return contains(_key) ? lookupNode(m_next)->at(_key.cropped(m_ext.size())) : c_nullString; }
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) override;
 	virtual TrieNode* remove(bytesConstRef _key) override;
 	virtual void makeRLP(RLPStream& _parentStream) const override;
@@ -335,40 +341,40 @@ void BaseTrie<_KeyType, _DB>::debugPrint()
 template <class _KeyType, class _DB>
 std::string const& BaseTrie<_KeyType, _DB>::atInternal(bytesConstRef _key) const
 {
-	cout << "atInternal key: " << _key << endl;
+	//cout << "atInternal key: " << _key << endl;
 	if (!m_rootNode)
 		return c_nullString;
 
 	if (m_hashed)
 	{
 		h256 key = sha3(_key);
-		cout << "atInternal hashed key: " << key << endl;
+		//cout << "atInternal hashed key: " << key << endl;
 		_key = bytesConstRef((byte const*)&key, sizeof(h256));
-		cout << "atInternal formatted key: " << key << endl;
+		//cout << "atInternal formatted key: " << key << endl;
 	}
 
 	auto h = asNibbles(_key);
-	cout << "atInternal nibbled key: " << h << endl;
+	//cout << "atInternal nibbled key: " << h << endl;
 	return m_rootNode->at(bytesConstRef(&h));
 }
 
 template <class _KeyType, class _DB>
 void BaseTrie<_KeyType, _DB>::insertInternal(bytesConstRef _key, bytesConstRef _value)
 {
-	cout << "insertInternal key: " << _key << endl;
+	//cout << "insertInternal key: " << _key << endl;
 	if (m_hashed)
 	{
 		h256 key = sha3(_key);
-		cout << "insertInternal hashed key: " << key << endl;
+		//cout << "insertInternal hashed key: " << key << endl;
 
 		_key = bytesConstRef((byte const*)&key, sizeof(h256));
-		cout << "insertInternal formatted key: " << key << endl;
+		//cout << "insertInternal formatted key: " << key << endl;
 
 	}
 	if (_value.empty())
 		removeInternal(_key);
 	auto h = asNibbles(_key);
-	cout << "insertInternal nibbled key: " << h << endl;
+	//cout << "insertInternal nibbled key: " << h << endl;
 
 	m_rootNode = m_rootNode ? m_rootNode->insert(bytesConstRef(&h), _value.toString()) : new TrieLeafNodeCJ(bytesConstRef(&h), _value.toString());
 

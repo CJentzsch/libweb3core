@@ -532,7 +532,7 @@ BOOST_AUTO_TEST_CASE(ChristophExampleHashed)
 	//t.insert(string("do"), string("verb"));
 	//t.insert(string("doge"), string("coin"));
 	cout << "root: " << t.root() << endl;
-	BOOST_CHECK(t.root() == h256("0x29b235a58c3c25ab83010c327d5932bcf05324b7d6b1185e650798034783ca9d"));
+	BOOST_CHECK(t.root() == h256("0x1d5d556f96abcc20327918d9209473b0709ff666a2723575202cb03388dc0103"));
 	// 1d1918a88d87b869512ff8735e9e62eda4058bba1c3d9a75008a47a8cf74e481 only first and last//
 	// 1d5d556f96abcc20327918d9209473b0709ff666a2723575202cb03388dc0103 ony first two
 }

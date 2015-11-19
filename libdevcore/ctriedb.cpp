@@ -20,18 +20,12 @@ void TrieNode::putRLP(RLPStream& _parentStream) const
 void TrieNode::insertNodeInDB()
 {
 	bytes rlp = this->rlp(); // horribly inefficient - needs improvement TODO
-	cout << "hash in insert: " << hash256() << endl;
 	m_db->insert(hash256(), bytesConstRef(&rlp));
 }
 
 TrieNode* TrieNode::lookupNode(bytes const& _h) const
 {
-	cout << "hash to lookup: " << _h << endl;
-	cout << "hash to lookup: " << h256(_h) << endl;
-	cout << "_h.size(): " << _h.size() << endl;
-
 	RLP rlp;
-	//cout << "_h.size: " << _h.size() << endl;
 	if (_h.size() < 32)
 		rlp = RLP(_h);
 	else if (_h.size() == 32)
@@ -45,7 +39,6 @@ TrieNode* TrieNode::lookupNode(bytes const& _h) const
 	assert(!rlp.isEmpty());
 	assert(!rlp.isNull());
 
-	//cout << "rlp construction successful, itemCount: " << rlp.itemCount() << endl;
 	// construct Node
 	if (rlp.itemCount() == 17)
 	{
@@ -57,18 +50,9 @@ TrieNode* TrieNode::lookupNode(bytes const& _h) const
 		{
 			//cout << "lookUpNode - branch i: " << int(i) << endl;
 			if (rlp[i].isList())
-			{
-				//cout << "isList\n";
 				nodes[i] = bytes(rlp[i].data().begin(), rlp[i].data().end());
-			}
 			else
-			{
-				//cout << "is not a List\n";
-				//assert(bytes(rlp[i].payload().begin(), rlp[i].payload().end() ).size() == 32);
-				//cout << "size of bytes(rlp[i].payload().begin(), rlp[i].payload().end() ).size(): " << bytes(rlp[i].payload().begin(), rlp[i].payload().end() ).size() << endl;
 				nodes[i] = bytes(rlp[i].payload().begin(), rlp[i].payload().end() );
-			}
-			//assert(rlp[i].data().size() == nodes[i].size());
 		}
 		string value = rlp[16].payload().toString();
 
@@ -79,47 +63,38 @@ TrieNode* TrieNode::lookupNode(bytes const& _h) const
 	}
 	else
 	{
-		//cout << "rlp.itemCount(): " << rlp.itemCount() << endl;
 		assert(rlp.itemCount() == 2);
 		// TrieExtNodeCJ
 
 		if ((rlp[0].payload()[0] & 0x20) != 0)
 		{
 			// is leaf
-			cout << "create leaf\n";
-			//bytes key = asNibbles(rlp[0].toBytesConstRef().cropped(1)); //remove prefix
 			bytes key;
 			if (rlp[1].isList())
 			{
 				key = asNibbles(rlp[0].data());
+				key.erase(key.begin());
 			}
 			else
 			{
 				key = asNibbles(rlp[0].payload());
+				key.erase(key.begin());
+
+				//if (key[0] == 0)
+				//	key = asNibbles(rlp[0].toBytesConstRef().cropped(1)); //remove prefix
+				//cout << "KEY: " << key << endl;
 			}
+			bytes key2 = asNibbles(rlp[0].toBytesConstRef().cropped(1));
 			//bytes  //remove prefix
-			key.erase(key.begin());
+
 
 			TrieLeafNodeCJ* leaf = new TrieLeafNodeCJ(bytesConstRef(&key), rlp[1].toString());
+
 			if (leaf->rlpOrHash() != _h)
 			{
-				cout << "rlp[0].payload()[0]: " << rlp[0].payload()[0] << endl;
-				cout << "rlp[0].payload()[0] & 0x20: " << (rlp[0].payload()[0] & 0x20) << endl;
+				TrieLeafNodeCJ* leaf2 = new TrieLeafNodeCJ(bytesConstRef(&key2), rlp[1].toString());
+				return leaf2;
 
-				cout << "rlp[0].payload()[0]: " << rlp[0].payload()[0] << endl;
-				cout << "rlp[0].payload()[0] & 0x20: " << (rlp[0].payload()[0] & 0x20) << endl;
-
-				cout << "*rlp[0].payload().begin(): " << *rlp[0].payload().begin() << endl;
-				cout << "*rlp[0].payload().begin() & 0x20: " << (*rlp[0].payload().begin() & 0x20) << endl;
-
-				cout << "leaf->rlpOrHash() == _h !!!!!!:\n";
-				cout << "leaf->rlpOrHash(): " << leaf->rlpOrHash() << endl;
-				cout << "_h: " << _h << endl;
-				cout << "RLP: " << rlp << endl;
-				cout << "rlp[0]: " << rlp[0] << endl;
-				cout << "rlp[0].payload(): " << rlp[0].payload() << endl;
-				cout << "key: " << key << endl;
-				cout << "value: " << rlp[1].toString() << endl;
 			}
 			assert(leaf->rlpOrHash() == _h);
 			//cout << "done\n";
@@ -283,8 +258,14 @@ TrieNode* TrieBranchNodeCJ::remove(bytesConstRef _key)
 		else {}
 	else if (m_nodes[_key[0]] != bytes())
 	{
-		TrieNode* n = lookupNode(m_nodes[_key[0]])->remove(_key.cropped(1));
-		m_nodes[_key[0]] = n->rlpOrHash();
+		TrieNode* n1 = lookupNode(m_nodes[_key[0]]);
+		assert(n1);
+		cout << "KEY: " << _key << endl;
+		cout << "KEY_cropped: " << _key.cropped(1) << endl;
+
+		TrieNode* n = n1->remove(_key.cropped(1));
+		//assert(n);
+		m_nodes[_key[0]] = n ? n->rlpOrHash() : bytes();
 		this->insertNodeInDB();
 		return rejig();
 	}

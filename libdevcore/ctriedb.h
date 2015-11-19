@@ -43,7 +43,7 @@ public:
 	/// 256-bit hash of the node - this is a SHA-3/256 hash of the RLP of the node.
 	h256 hash256() const { RLPStream s; makeRLP(s); return dev::sha3(s.out()); }
 	bytes rlp() const { RLPStream s; makeRLP(s); return s.out(); }
-	bytes rlpOrHash() const { bytes rlp(this->rlp()); return rlp.size() < 32 ? rlp : dev::sha3(rlp).asBytes(); }
+	bytes rlpOrHash() const { bytes rlp_(rlp()); return rlp_.size() < 32 ? rlp_ : dev::sha3(rlp_).asBytes(); }
 	void mark() { m_hash256 = h256(); }
 
 	void setDB(BaseDB* _db){m_db = _db;}
@@ -267,7 +267,7 @@ public:
 	}
 #endif
 
-	void debug() { cout << "my (leaf) hash is: " << hash256() << endl; assert(hash256() != h256("0xe17f34f91630dcdb60abc84b54698403879f50d5721640a41be74f084a607f2f")); }
+	void debug() { cout << "my (leaf) hash is: " << hash256() << endl; }
 	virtual std::string const& at(bytesConstRef _key) const override {/*cout << "key at leaf: " << _key << endl; cout << "contains: " << contains(_key) << endl*/; return contains(_key) ? m_value : c_nullString; }
 	virtual TrieNode* insert(bytesConstRef _key, std::string const& _value) override;
 	virtual TrieNode* remove(bytesConstRef _key) override;
@@ -278,9 +278,9 @@ public:
 private:
 	bool contains(bytesConstRef _key) const
 	{
-		//cout << "size check: " << (_key.size() == m_ext.size())  << " _key.size(): " << _key.size() << " m_ext.size(): " << m_ext.size() << endl;
-		//cout << "memcmp check: " << memcmp(_key.data(), m_ext.data(), _key.size()) << endl;
-		//cout << "key: " << _key << " m_ext: " << m_ext << endl;
+		cout << "size check: " << (_key.size() == m_ext.size())  << " _key.size(): " << _key.size() << " m_ext.size(): " << m_ext.size() << endl;
+		cout << "memcmp check: " << memcmp(_key.data(), m_ext.data(), _key.size()) << endl;
+		cout << "key: " << _key << " m_ext: " << m_ext << endl;
 		return _key.size() == m_ext.size() && !memcmp(_key.data(), m_ext.data(), _key.size());
 	}
 
